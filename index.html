@@ -173,6 +173,32 @@
   .highlight-label{ font-family:var(--font-mono); font-size:0.66rem; color:var(--muted-2); letter-spacing:0.06em; }
   .highlight-value{ font-size:0.92rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+  .ad-slot{
+    max-width:1120px; margin:0 auto 36px; padding:0 28px;
+  }
+  .ad-slot-inner{
+    border:1px dashed var(--line-strong); border-radius:10px; background:rgba(255,255,255,0.02);
+    color:var(--muted-2); font-family:var(--font-mono); font-size:0.7rem;
+    display:flex; align-items:center; justify-content:center; min-height:90px; text-align:center; padding:12px;
+  }
+
+  .ad-anchor{
+    position:fixed; left:0; right:0; bottom:0; z-index:70;
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    background:rgba(10,12,16,0.96); backdrop-filter:blur(10px);
+    border-top:1px dashed var(--line-strong); padding:10px 16px;
+    min-height:64px;
+  }
+  .ad-anchor-inner{
+    color:var(--muted-2); font-family:var(--font-mono); font-size:0.7rem; text-align:center;
+  }
+  .ad-anchor-close{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1px solid var(--line-strong);
+    background:var(--panel-2); color:var(--muted); font-size:0.8rem; line-height:1;
+  }
+  .ad-anchor-close:hover{ border-color:var(--green); color:var(--text); }
+  body.has-ad-anchor footer{ padding-bottom:74px; }
+
   /* ---------- live broadcast section ---------- */
   .live-input{
     background:#070a0d; border:1px solid var(--line-strong); border-radius:7px;
@@ -580,6 +606,9 @@
     }
   }
 </style>
+
+<!-- ▼ AdSenseの確認用コード(scriptタグ)が発行されたら、ここに貼り付けます ▼ -->
+
 </head>
 <body>
 <div class="grain"></div>
@@ -646,6 +675,10 @@
       <span class="highlight-label">📊 これまでに</span>
       <span class="highlight-value" id="hlStatsValue">0曲・0件の声</span>
     </div>
+  </div>
+
+  <div class="ad-slot" data-ad-position="top-banner">
+    <div class="ad-slot-inner">📢 広告スペース（準備中）</div>
   </div>
 
   <div class="page-tab-bar-outer">
@@ -757,6 +790,10 @@
       <div class="grid-3" id="nowPlayingGrid"></div>
     </div>
   </section>
+
+  <div class="ad-slot" data-ad-position="mid-content">
+    <div class="ad-slot-inner">📢 広告スペース（準備中）</div>
+  </div>
 
   <hr class="divider">
 
@@ -1059,11 +1096,48 @@
         <div class="foot-logo">zzZ FM</div>
         <p class="foot-note">どこにも存在しない、深夜だけの放送局です。ここに書かれている番組・楽曲・人物は全てフィクションであり、実在のものとは一切関係ありません。</p>
         <p class="foot-hint">ヒント：眠れない夜は、ダイヤルの端から端まで、ゆっくり動かしてみるといいことがあるかも。</p>
+        <p class="foot-hint" style="margin-top:10px;"><a href="#privacy" style="color:var(--muted); text-decoration:underline;">プライバシーポリシー</a></p>
       </div>
       <p class="track-time">© NOWHERE, EVERY MIDNIGHT</p>
     </div>
   </div>
 </footer>
+
+<section id="privacy" style="padding:60px 0;">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">PRIVACY</p>
+      <h2>プライバシーポリシー</h2>
+      <p>最終更新日：2026年6月29日</p>
+    </div>
+    <div class="tuner-panel" style="line-height:1.9;">
+      <p class="broadcast-desc">本サイト「zzZ FM」（以下「当サイト」）は、個人が運営する非商用のファンメイドプロジェクトです。本ポリシーは、当サイトが取得する情報とその取り扱いについて説明するものであり、法律の専門家による文書ではありません。</p>
+
+      <p class="snippet-eyebrow" style="margin-top:24px;">取得する情報</p>
+      <p class="broadcast-desc">ログイン機能（Google）をご利用いただく際、Googleアカウントの氏名・メールアドレス・プロフィール画像を取得します。これらは投稿者の識別、ランキングやプロフィールの表示、不正利用の防止のために使用します。また、投稿された曲・コメント・メッセージなどのコンテンツは、当サイトのデータベース（Firebase Realtime Database）に保存されます。</p>
+
+      <p class="snippet-eyebrow" style="margin-top:20px;">利用目的</p>
+      <p class="broadcast-desc">取得した情報は、ログイン状態の維持、投稿者名の表示、ランキング・常連リスナーの集計、不適切な利用への対応（利用制限など）の目的にのみ使用します。第三者への販売・提供は行いません。</p>
+
+      <p class="snippet-eyebrow" style="margin-top:20px;">広告について</p>
+      <p class="broadcast-desc">当サイトでは、Googleなどの第三者配信事業者が広告を表示することがあります。これらの事業者は、ユーザーの興味に応じた広告を表示するためにCookie等を使用することがあります。Google が広告に Cookie を使用する仕組みについては、<a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener" style="color:var(--green);">Google の広告に関するポリシー</a>をご確認ください。</p>
+
+      <p class="snippet-eyebrow" style="margin-top:20px;">Cookie等の利用</p>
+      <p class="broadcast-desc">当サイトおよび広告配信事業者は、サイトの利便性向上や広告配信のためにCookieを使用することがあります。ブラウザの設定によりCookieを無効にすることも可能ですが、その場合一部機能が利用できなくなることがあります。</p>
+
+      <p class="snippet-eyebrow" style="margin-top:20px;">情報の管理・削除</p>
+      <p class="broadcast-desc">投稿内容の削除や、登録情報に関するお問い合わせは、サイト内の「ご意見・不具合」フォームからご連絡ください。</p>
+
+      <p class="snippet-eyebrow" style="margin-top:20px;">本ポリシーの変更</p>
+      <p class="broadcast-desc">本ポリシーは、必要に応じて予告なく変更されることがあります。変更後は当ページの内容が適用されます。</p>
+    </div>
+  </div>
+</section>
+
+<div class="ad-anchor" id="adAnchor">
+  <div class="ad-anchor-inner">📢 広告スペース（準備中・画面下に追従するタイプ）</div>
+  <button type="button" class="ad-anchor-close" id="adAnchorClose" aria-label="閉じる">×</button>
+</div>
 
 <script>
 (function(){
@@ -1369,6 +1443,17 @@
       gotoSection(id);
     }
   });
+
+  // ---------- 画面下のアンカー広告(準備中プレースホルダー) ----------
+  var adAnchor = document.getElementById('adAnchor');
+  var adAnchorClose = document.getElementById('adAnchorClose');
+  if(adAnchor){ document.body.classList.add('has-ad-anchor'); }
+  if(adAnchorClose){
+    adAnchorClose.addEventListener('click', function(){
+      adAnchor.style.display = 'none';
+      document.body.classList.remove('has-ad-anchor');
+    });
+  }
 
   // ---------- ハンバーガーメニュー ----------
   var hamburgerBtn = document.getElementById('hamburgerBtn');
