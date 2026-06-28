@@ -1480,11 +1480,13 @@
     return guitarBufferPromise;
   }
 
+  var GUITAR_OCTAVE_SHIFT = 2; // 1オクターブ下げる（2なら1オクターブ、4なら2オクターブ）
+
   function playAcousticNoteSample(ctx, destination, freq, startTime, levelScale){
     if(!guitarBuffer) return;
     var src = ctx.createBufferSource();
     src.buffer = guitarBuffer;
-    src.playbackRate.value = freq / GUITAR_BASE_FREQ;
+    src.playbackRate.value = (freq / GUITAR_OCTAVE_SHIFT) / GUITAR_BASE_FREQ;
     var g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, startTime);
     g.gain.linearRampToValueAtTime(0.9 * (levelScale || 1), startTime + 0.003);
