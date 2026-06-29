@@ -28,6 +28,14 @@
 <meta name="google-site-verification" content="V4jspz9oO5PY6PMsblKm024b5-nBFlTbOpt47RoiNY0" />
 
 <!-- ▼ Googleアナリティクスの測定ID(G-で始まるもの)が発行されたら、ここに貼り付けます ▼ -->
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-V0BNHBZ9CW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-V0BNHBZ9CW');
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -3438,28 +3446,58 @@
     var uid = viewingUid;
     var dispName = resolveDisplayName(uid);
     var score = regularScoresByUid[uid] || 0;
-    var followersMap = (profiles[uid] && profiles[uid].followers) || {};
+    var prof = profiles[uid] || {};
+    var followersMap = prof.followers || {};
+    var followingMap = prof.following || {};
     var followerCount = Object.keys(followersMap).filter(function(k){ return followersMap[k]; }).length;
+    var followingCount = Object.keys(followingMap).filter(function(k){ return followingMap[k]; }).length;
     var amFollowing = isFollowing(uid);
+    var eq = prof.equipped || {};
+    var avatarItem = findItem('avatar', eq.avatar);
+
+    var trackIds = Object.keys(communityTracks).filter(function(id){ return communityTracks[id].uid === uid; });
+    var totalLikes = trackIds.reduce(function(sum, id){ return sum + (allLikes[id] || 0); }, 0);
+    var tagCounts = {};
+    trackIds.forEach(function(id){
+      (communityTracks[id].tags || []).forEach(function(tg){ tagCounts[tg] = (tagCounts[tg] || 0) + 1; });
+    });
+    var topTags = Object.keys(tagCounts).sort(function(a, b){ return tagCounts[b] - tagCounts[a]; }).slice(0, 5);
+    var bestTrackId = trackIds.slice().sort(function(a, b){ return (allLikes[b] || 0) - (allLikes[a] || 0); })[0];
+    var bestTrack = bestTrackId ? communityTracks[bestTrackId] : null;
 
     panel.innerHTML =
       '<button type="button" class="admin-link" id="backToMyProfileBtn">← 戻る</button>' +
-      '<div style="margin-top:14px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">' +
-        '<h3 class="rank-title" style="margin:0;">' + decorateName(dispName, uid) + (score >= REGULAR_THRESHOLD ? ' <span class="badge-regular" title="常連リスナー">🌟</span>' : '') + '</h3>' +
-        (currentUser && currentUser.uid !== uid ?
-          '<button type="button" class="btn btn-primary" id="publicFollowBtn">' + (amFollowing ? '✅ フォロー中' : '➕ フォローする') + '</button>'
-          : '') +
+      '<div style="margin-top:14px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">' +
+        (avatarItem ? '<div style="font-size:2.8rem; line-height:1;">' + avatarItem.emoji + '</div>' : '') +
+        '<div>' +
+          '<h3 class="rank-title" style="margin:0;">' + decorateName(dispName, uid) + (score >= REGULAR_THRESHOLD ? ' <span class="badge-regular" title="常連リスナー">🌟</span>' : '') + '</h3>' +
+          '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">' +
+            (currentUser && currentUser.uid !== uid ?
+              '<button type="button" class="btn btn-primary" id="publicFollowBtn">' + (amFollowing ? '✅ フォロー中' : '➕ フォローする') + '</button>'
+              : '') +
+            '<button type="button" class="btn" id="publicShareBtn">🔗 シェア</button>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
-      '<p class="broadcast-desc" style="margin-top:10px;">フォロワー：' + followerCount + '人　／　スコア：' + score + '</p>';
+      '<div class="rank-list" style="margin-top:18px;">' +
+        '<div class="rank-item"><span class="rank-name">🎵 投稿した曲</span><span class="rank-likes">' + trackIds.length + '曲</span></div>' +
+        '<div class="rank-item"><span class="rank-name">❤️ もらったいいね</span><span class="rank-likes">' + totalLikes + '</span></div>' +
+        '<div class="rank-item"><span class="rank-name">🤝 フォロワー</span><span class="rank-likes">' + followerCount + '人</span></div>' +
+        '<div class="rank-item"><span class="rank-name">👀 フォロー中</span><span class="rank-likes">' + followingCount + '人</span></div>' +
+        '<div class="rank-item"><span class="rank-name">⭐ 常連スコア</span><span class="rank-likes">' + score + '</span></div>' +
+      '</div>' +
+      (topTags.length ? '<p class="snippet-eyebrow" style="margin-top:18px;">よく付けるムード</p><div class="track-tags" style="margin-top:6px;">' + topTags.map(function(tg){ return '<span class="track-tag-chip">' + moodLabel(tg) + '</span>'; }).join('') + '</div>' : '') +
+      (bestTrack ? '<p class="broadcast-desc" style="margin-top:16px;">🏆 一番人気の曲：「' + escapeHtml(bestTrack.title) + '」（❤ ' + (allLikes[bestTrackId] || 0) + '）</p>' : '');
 
     var backBtn = document.getElementById('backToMyProfileBtn');
     if(backBtn) backBtn.addEventListener('click', function(){ viewingUid = null; renderProfile(); });
     var followBtn = document.getElementById('publicFollowBtn');
     if(followBtn) followBtn.addEventListener('click', function(){ toggleFollow(uid, dispName); });
+    var shareBtn = document.getElementById('publicShareBtn');
+    if(shareBtn) shareBtn.addEventListener('click', function(){ shareContent(dispName + 'さんのプロフィール / zzZ FM'); });
 
-    var trackIds = Object.keys(communityTracks).filter(function(id){ return communityTracks[id].uid === uid; })
-      .sort(function(a, b){ return (communityTracks[b].createdAt || 0) - (communityTracks[a].createdAt || 0); });
-    var entries = trackIds.map(function(id){ return { id: id, track: communityTracks[id] }; });
+    var sortedTrackIds = trackIds.sort(function(a, b){ return (communityTracks[b].createdAt || 0) - (communityTracks[a].createdAt || 0); });
+    var entries = sortedTrackIds.map(function(id){ return { id: id, track: communityTracks[id] }; });
     renderGrid(grid, entries, 'まだ投稿された曲はありません。', publicProfileUnsubs);
   }
 
