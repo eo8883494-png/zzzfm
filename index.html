@@ -262,7 +262,7 @@
 
   .highlights-strip{
     max-width:1120px; margin:0 auto; padding:0 28px 36px;
-    display:grid; grid-template-columns:repeat(5, 1fr); gap:12px;
+    display:grid; grid-template-columns:repeat(6, 1fr); gap:12px;
   }
   @media (max-width:980px){ .highlights-strip{ grid-template-columns:repeat(3, 1fr); } }
   @media (max-width:640px){ .highlights-strip{ grid-template-columns:repeat(2, 1fr); } }
@@ -512,6 +512,12 @@
   .comment-item{ font-size:0.85rem; background:var(--panel-2); border-radius:8px; padding:7px 10px; line-height:1.5; }
   .comment-name{ font-family:var(--font-mono); font-size:0.68rem; color:var(--pink); margin-right:8px; }
   .comment-empty{ font-size:0.8rem; color:var(--muted-2); }
+  .achievement-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .achievement-badge{
+    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    font-size:1.3rem; background:var(--panel-2); border:1px solid var(--line-strong);
+    border-radius:50%; cursor:default;
+  }
   .comment-form{ display:flex; gap:8px; flex-wrap:wrap; }
   .comment-form input{ flex:1; min-width:90px; }
   .comment-name-input{ flex:0 0 90px; }
@@ -884,6 +890,10 @@
       <span class="highlight-label">📊 これまでに</span>
       <span class="highlight-value" id="hlStatsValue">0曲・0件の声</span>
     </div>
+    <div class="highlight-card">
+      <span class="highlight-label">👥 今見てる人</span>
+      <span class="highlight-value" id="hlOnlineValue">--人</span>
+    </div>
   </div>
 
   <div class="page-tab-bar-outer">
@@ -974,6 +984,19 @@
           </div>
           <p class="audio-note" id="broadcastStatusText"></p>
           <p class="foot-hint" id="adminStopWrap" style="display:none;"><button class="admin-link admin-only-btn" id="adminStopBtn" type="button">🛠️ 管理者用：すべての配信を強制終了</button></p>
+        </div>
+
+        <div class="broadcast-control" style="margin-top:24px;">
+          <p class="snippet-eyebrow">📅 配信予定を知らせる</p>
+          <p class="broadcast-desc">「今夜この時間に配信します」と予告できます。フォローしている人には通知が届きます。</p>
+          <p class="locked-note">🔒 予告するにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+          <div class="radio-control" style="border-top:none; padding-top:0; margin-top:14px;">
+            <input type="datetime-local" id="scheduleTimeInput" class="live-input" style="flex:0 0 220px;">
+            <input type="text" id="scheduleNoteInput" class="live-input" placeholder="ひとこと(例：弾き語りします)" maxlength="60">
+            <button class="btn btn-primary" id="scheduleSubmitBtn" type="button">予告する</button>
+          </div>
+          <p class="audio-note" id="scheduleNote"></p>
+          <div id="scheduleList" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
 
         <audio id="remoteAudio" autoplay style="display:none;"></audio>
@@ -1235,6 +1258,8 @@
                   <span class="profile-stat-label">フォロー中</span>
                 </button>
               </div>
+              <p class="snippet-eyebrow" style="margin-top:18px;">🏆 実績</p>
+              <div id="profileAchievements"></div>
               <div id="followingSection" style="display:none; margin-top:16px;">
                 <div id="followingList" style="display:flex; flex-direction:column; gap:8px;"></div>
               </div>
@@ -1863,6 +1888,18 @@
   var googleProvider = new GoogleAuthProvider();
   var currentUser = null;
 
+  // ============== 👥 今見てる人数（ログイン不要・匿名プレゼンス） ==============
+  (function(){
+    var myPresenceRef = push(ref(db, 'presence'));
+    set(myPresenceRef, true);
+    onDisconnect(myPresenceRef).remove();
+    onValue(ref(db, 'presence'), function(snap){
+      var data = snap.val() || {};
+      var el = document.getElementById('hlOnlineValue');
+      if(el) el.textContent = Object.keys(data).length + '人';
+    });
+  })();
+
   // ============== 管理者判定 ==============
   var ADMIN_EMAILS = ['eo8883494@gmail.com', 'eo8883494@zeus.eonet.ne.jp'];
   function isAdmin(){
@@ -1942,6 +1979,9 @@
       if(n.type === 'live'){
         label = '📡 ' + escapeHtml(n.fromName || '名無し') + 'さんが配信中';
         bodyText = (n.freq ? n.freq.toFixed(1) + ' MHz で配信中です' : '');
+      } else if(n.type === 'schedule'){
+        label = '📅 ' + escapeHtml(n.fromName || '名無し') + 'さんが配信予定';
+        bodyText = (n.scheduledAt ? formatScheduleTime(n.scheduledAt) : '') + (n.note ? '：' + escapeHtml(n.note) : '');
       } else if(n.type === 'comment'){
         label = '💬 ' + escapeHtml(n.fromName || '名無し') + 'さんがコメントしました';
         bodyText = '「' + escapeHtml(n.trackTitle || '') + '」: ' + escapeHtml(n.text || '');
@@ -1981,7 +2021,7 @@
     if(item){
       notifPanelEl.style.display = 'none';
       var type = item.getAttribute('data-notif-type');
-      gotoSection(type === 'live' ? 'tuner' : 'library');
+      gotoSection((type === 'live' || type === 'schedule') ? 'tuner' : 'library');
     }
   });
 
@@ -2039,16 +2079,19 @@
     showToast(nowFollowing ? 'フォローを解除しました。' : (targetName || '') + 'さんをフォローしました。', 'success');
   }
 
-  function notifyFollowersOfLive(uid, name, freq){
+  function notifyFollowers(uid, extraFields){
     get(ref(db, 'profiles/' + uid + '/followers')).then(function(snap){
       var followers = snap.val() || {};
       Object.keys(followers).forEach(function(followerUid){
         if(!followers[followerUid]) return;
-        push(ref(db, 'notifications/' + followerUid), {
-          type: 'live', fromName: name, fromUid: uid, freq: freq, createdAt: Date.now(), read: false
-        });
+        var payload = { fromUid: uid, createdAt: Date.now(), read: false };
+        for(var k in extraFields){ payload[k] = extraFields[k]; }
+        push(ref(db, 'notifications/' + followerUid), payload);
       });
     }).catch(function(){});
+  }
+  function notifyFollowersOfLive(uid, name, freq){
+    notifyFollowers(uid, { type: 'live', fromName: name, freq: freq });
   }
 
   // ---------- 👤 他の人の公開プロフィールを見る ----------
@@ -2555,6 +2598,65 @@
     var mm = ('0' + d.getMinutes()).slice(-2);
     return ampm + ' ' + hh + ':' + mm;
   }
+
+  function formatScheduleTime(ts){
+    if(!ts) return '';
+    var d = new Date(ts);
+    var now = new Date();
+    var sameDay = d.toDateString() === now.toDateString();
+    var mm = ('0' + d.getMinutes()).slice(-2);
+    var datePart = sameDay ? '今日' : (d.getMonth() + 1) + '/' + d.getDate();
+    return datePart + ' ' + d.getHours() + ':' + mm;
+  }
+
+  // ---------- 📅 配信予定の予告 ----------
+  var scheduleSubmitBtn = document.getElementById('scheduleSubmitBtn');
+  if(scheduleSubmitBtn) scheduleSubmitBtn.addEventListener('click', function(){
+    var name = requireLogin();
+    if(!name) return;
+    var timeInput = document.getElementById('scheduleTimeInput');
+    var noteInput = document.getElementById('scheduleNoteInput');
+    var note = document.getElementById('scheduleNote');
+    var timeVal = timeInput.value;
+    if(!timeVal){ note.textContent = '配信予定の日時を入力してください。'; return; }
+    var scheduledAt = new Date(timeVal).getTime();
+    if(!scheduledAt || scheduledAt < Date.now() - 60000){ note.textContent = '未来の日時を入力してください。'; return; }
+    var text = (noteInput.value || '').trim().slice(0, 60);
+    push(ref(db, 'scheduledBroadcasts'), {
+      uid: currentUser.uid, name: name, scheduledAt: scheduledAt, note: text, createdAt: Date.now()
+    }).then(function(){
+      notifyFollowers(currentUser.uid, { type: 'schedule', fromName: name, scheduledAt: scheduledAt, note: text });
+      note.textContent = '予告しました！フォロワーに通知が届きます。';
+      timeInput.value = '';
+      noteInput.value = '';
+    });
+  });
+
+  onValue(ref(db, 'scheduledBroadcasts'), function(snap){
+    var data = snap.val() || {};
+    var now = Date.now();
+    var ids = Object.keys(data).filter(function(id){ return (data[id].scheduledAt || 0) > now - 30 * 60000; })
+      .sort(function(a, b){ return (data[a].scheduledAt || 0) - (data[b].scheduledAt || 0); });
+    var listEl = document.getElementById('scheduleList');
+    if(!listEl) return;
+    if(ids.length === 0){
+      listEl.innerHTML = '<p class="comment-empty">今のところ配信予定はありません。</p>';
+      return;
+    }
+    listEl.innerHTML = ids.map(function(id){
+      var s = data[id];
+      var canDelete = currentUser && (currentUser.uid === s.uid || isAdmin());
+      return '<div class="msg-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">' +
+        '<span>📅 ' + formatScheduleTime(s.scheduledAt) + '　' + decorateName(s.name || '名無し', s.uid) + (s.note ? '：' + escapeHtml(s.note) : '') + '</span>' +
+        (canDelete ? '<button type="button" class="btn" data-delete-schedule="' + id + '">削除</button>' : '') +
+      '</div>';
+    }).join('');
+    listEl.querySelectorAll('[data-delete-schedule]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        remove(ref(db, 'scheduledBroadcasts/' + btn.getAttribute('data-delete-schedule')));
+      });
+    });
+  });
 
   var wallQuery = query(ref(db, 'wall/messages'), limitToLast(60));
   var lastWallData = {};
@@ -3131,6 +3233,66 @@
     return found || '名無し';
   }
 
+  // ---------- 🏆 実績バッジ（自動で解除される、購入とは別の称号） ----------
+  var ACHIEVEMENTS = [
+    { id: 'first_track', icon: '🎉', label: 'はじめての一歩', desc: '曲を1曲投稿した' },
+    { id: 'five_tracks', icon: '🎵', label: '作曲家', desc: '曲を5曲投稿した' },
+    { id: 'first_message', icon: '💬', label: 'はじめての一言', desc: 'リスナーの声に投稿した' },
+    { id: 'first_broadcast', icon: '📡', label: 'はじめての電波', desc: '配信した' },
+    { id: 'likes_10', icon: '❤️', label: '愛されリスナー', desc: '曲が合計10いいねされた' },
+    { id: 'likes_50', icon: '🔥', label: '大人気', desc: '曲が合計50いいねされた' },
+    { id: 'regular', icon: '🌟', label: '常連リスナー', desc: '常連リスナーに認定された' },
+    { id: 'first_follow', icon: '🤝', label: 'はじめてのフォロー', desc: '誰かをフォローした' },
+    { id: 'popular_5', icon: '👀', label: '人気者', desc: 'フォロワーが5人になった' }
+  ];
+
+  function getAchievementStats(uid){
+    var trackIds = Object.keys(communityTracks).filter(function(id){ return communityTracks[id].uid === uid; });
+    var totalLikes = trackIds.reduce(function(s, id){ return s + (allLikes[id] || 0); }, 0);
+    var prof = profiles[uid] || {};
+    var followersMap = prof.followers || {};
+    var followingMap = prof.following || {};
+    return {
+      trackCount: trackIds.length,
+      totalLikes: totalLikes,
+      messageCount: wallMessagesByUid[uid] || 0,
+      broadcastCount: broadcastsByUid[uid] || 0,
+      score: regularScoresByUid[uid] || 0,
+      followerCount: Object.keys(followersMap).filter(function(k){ return followersMap[k]; }).length,
+      followingCount: Object.keys(followingMap).filter(function(k){ return followingMap[k]; }).length
+    };
+  }
+
+  function isAchievementEarned(id, stats){
+    switch(id){
+      case 'first_track': return stats.trackCount >= 1;
+      case 'five_tracks': return stats.trackCount >= 5;
+      case 'first_message': return stats.messageCount >= 1;
+      case 'first_broadcast': return stats.broadcastCount >= 1;
+      case 'likes_10': return stats.totalLikes >= 10;
+      case 'likes_50': return stats.totalLikes >= 50;
+      case 'regular': return stats.score >= REGULAR_THRESHOLD;
+      case 'first_follow': return stats.followingCount >= 1;
+      case 'popular_5': return stats.followerCount >= 5;
+      default: return false;
+    }
+  }
+
+  function getEarnedAchievements(uid){
+    var stats = getAchievementStats(uid);
+    return ACHIEVEMENTS.filter(function(a){ return isAchievementEarned(a.id, stats); });
+  }
+
+  function achievementsHtml(uid){
+    var earned = getEarnedAchievements(uid);
+    if(earned.length === 0){
+      return '<p class="comment-empty">まだ実績がありません。曲を投稿したり配信したりすると解除されます。</p>';
+    }
+    return '<div class="achievement-row">' + earned.map(function(a){
+      return '<span class="achievement-badge" title="' + escapeHtml(a.label) + '：' + escapeHtml(a.desc) + '">' + a.icon + '</span>';
+    }).join('') + '</div>';
+  }
+
   function renderArtistRanking(){
     if(!artistRankingEl) return;
     var totals = {};
@@ -3579,6 +3741,9 @@
     var statFollowersEl = document.getElementById('profileStatFollowers'); if(statFollowersEl) statFollowersEl.textContent = myFollowerCount;
     var statFollowingEl = document.getElementById('profileStatFollowing'); if(statFollowingEl) statFollowingEl.textContent = myFollowingCount;
 
+    var achievementsEl = document.getElementById('profileAchievements');
+    if(achievementsEl) achievementsEl.innerHTML = achievementsHtml(currentUser.uid);
+
     var hasAny = false;
     [['avatar', 'profileAvatarSection', 'profileAvatarGrid'], ['badge', 'profileBadgeSection', 'profileBadgeGrid'], ['frame', 'profileFrameSection', 'profileFrameGrid'], ['header', 'profileHeaderSection', 'profileHeaderGrid']].forEach(function(row){
       var category = row[0], sectionId = row[1], gridId = row[2];
@@ -3745,6 +3910,8 @@
           '<button type="button" class="btn" id="publicShareBtn">🔗 シェア</button>' +
         '</div>' +
         '<div id="publicFollowListWrap" style="display:none; margin-top:14px;"><div id="publicFollowList" style="display:flex; flex-direction:column; gap:8px;"></div></div>' +
+        '<p class="snippet-eyebrow" style="margin-top:18px;">🏆 実績</p>' +
+        achievementsHtml(uid) +
       '</div>' +
       (topTags.length ? '<p class="snippet-eyebrow" style="margin-top:18px;">よく付けるムード</p><div class="track-tags" style="margin-top:6px;">' + topTags.map(function(tg){ return '<span class="track-tag-chip">' + moodLabel(tg) + '</span>'; }).join('') + '</div>' : '') +
       (bestTrack ? '<p class="broadcast-desc" style="margin-top:16px;">🏆 一番人気の曲：「' + escapeHtml(bestTrack.title) + '」（❤ ' + (allLikes[bestTrackId] || 0) + '）</p>' : '');
