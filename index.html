@@ -132,6 +132,36 @@
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   }
   .locked-note .btn{ padding:6px 12px; font-size:0.7rem; }
+
+  /* ---------- プロフィール：ログイン前の案内 ---------- */
+  .login-empty-state{ text-align:center; padding:34px 20px; }
+  .login-empty-icon{
+    font-size:2.6rem; line-height:1; margin-bottom:14px; opacity:0.9;
+    filter:drop-shadow(0 0 14px rgba(61,255,160,0.35));
+  }
+  .login-empty-state h3{ font-size:1.08rem; margin-bottom:10px; }
+  .login-empty-state p{ color:var(--muted); font-size:0.86rem; max-width:380px; margin:0 auto 22px; line-height:1.8; }
+
+  /* ---------- プロフィール：ログイン後のカード ---------- */
+  .profile-header-row{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .profile-avatar-display{
+    font-size:2.4rem; line-height:1; flex-shrink:0; width:72px; height:72px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--panel-2); border-radius:50%; border:1px solid var(--line-strong);
+    box-shadow:0 0 0 4px rgba(61,255,160,0.06);
+  }
+  .profile-header-info{ flex:1; min-width:220px; }
+  .profile-points-badge{
+    text-align:center; background:rgba(61,255,160,0.08); border:1px solid rgba(61,255,160,0.35);
+    border-radius:14px; padding:12px 22px; flex-shrink:0;
+  }
+  .profile-points-num{ display:block; font-family:var(--font-disp); font-weight:900; font-size:1.7rem; color:var(--green); line-height:1; }
+  .profile-points-label{ font-family:var(--font-mono); font-size:0.62rem; color:var(--muted); letter-spacing:0.08em; }
+  .referral-card{
+    margin-top:26px; padding:18px 20px; background:rgba(255,178,62,0.05);
+    border:1px solid rgba(255,178,62,0.25); border-radius:12px;
+  }
+  @media (max-width:520px){ .profile-header-row{ justify-content:center; text-align:center; } .profile-header-info{ width:100%; } }
   .nav-logo{
     font-family:var(--font-disp); font-weight:900; font-size:1.05rem;
     letter-spacing:0.04em; display:flex; align-items:center; gap:10px;
@@ -1124,20 +1154,35 @@
 
       <div class="composer-mode" id="profileTab">
         <div class="tuner-panel" id="profilePanel">
-          <p class="locked-note">🔒 プロフィールを見るにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+          <div class="login-empty-state" id="profileLoginPrompt">
+            <div class="login-empty-icon">🌙</div>
+            <h3>プロフィールを見るにはログインが必要です</h3>
+            <p>ログインすると、公開する名前の設定・ポイントの確認・お気に入りの管理・友達紹介ができるようになります。</p>
+            <button class="btn btn-primary" type="button" onclick="document.getElementById('loginBtn').click();">🔑 Googleでログイン</button>
+          </div>
           <div id="profileContent" style="display:none;">
-            <div class="radio-control" style="border-top:none; padding-top:0;">
-              <input type="text" id="profileNameInput" class="live-input" placeholder="公開する名前" maxlength="20">
-              <button type="button" class="btn btn-primary" id="profileSaveNameBtn">保存する</button>
+            <div class="profile-header-row">
+              <div class="profile-avatar-display" id="profileAvatarDisplay">👤</div>
+              <div class="profile-header-info">
+                <div class="radio-control" style="border-top:none; padding-top:0;">
+                  <input type="text" id="profileNameInput" class="live-input" placeholder="公開する名前" maxlength="20">
+                  <button type="button" class="btn btn-primary" id="profileSaveNameBtn">保存する</button>
+                </div>
+                <p class="audio-note" id="profileNameNote">これが、配信・コメント・曲投稿・リスナーの声で使われる名前になります。</p>
+              </div>
+              <div class="profile-points-badge">
+                <span class="profile-points-num" id="profilePoints">0</span>
+                <span class="profile-points-label">POINTS</span>
+              </div>
             </div>
-            <p class="audio-note" id="profileNameNote">これが、配信・コメント・曲投稿・リスナーの声で使われる名前になります。</p>
-            <p class="broadcast-desc" style="margin-top:14px;">今のポイント：<strong id="profilePoints">0</strong> pt</p>
 
-            <p class="snippet-eyebrow" style="margin-top:24px;">🎁 友達を紹介してポイントGET</p>
-            <p class="broadcast-desc">このリンクから新しい人がログインすると、お互いに+15ptもらえます。</p>
-            <div class="radio-control" style="border-top:none; padding-top:0;">
-              <input type="text" id="referralLinkInput" class="live-input" readonly>
-              <button type="button" class="btn btn-primary" id="copyReferralBtn">📋 コピー</button>
+            <div class="referral-card">
+              <p class="snippet-eyebrow">🎁 友達を紹介してポイントGET</p>
+              <p class="broadcast-desc">このリンクから新しい人がログインすると、お互いに+15ptもらえます。</p>
+              <div class="radio-control" style="border-top:none; padding-top:0;">
+                <input type="text" id="referralLinkInput" class="live-input" readonly>
+                <button type="button" class="btn btn-primary" id="copyReferralBtn">📋 コピー</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3310,7 +3355,7 @@
 
   // ---------- 👤 プロフィール画面 ----------
   function renderProfile(){
-    var panelLocked = document.querySelector('#profilePanel .locked-note');
+    var panelLocked = document.getElementById('profileLoginPrompt');
     var content = document.getElementById('profileContent');
     if(!content) return;
 
@@ -3330,7 +3375,7 @@
     if(publicView) publicView.style.display = 'none';
 
     if(!currentUser){
-      if(panelLocked) panelLocked.style.display = 'flex';
+      if(panelLocked) panelLocked.style.display = 'block';
       content.style.display = 'none';
       ['profileAvatarSection', 'profileBadgeSection', 'profileFrameSection'].forEach(function(id){
         var el = document.getElementById(id); if(el) el.style.display = 'none';
@@ -3353,6 +3398,12 @@
     if(referralInput) referralInput.value = SITE_URL + '?ref=' + currentUser.uid;
 
     var prof = getMyProfile();
+    var avatarDisplayEl = document.getElementById('profileAvatarDisplay');
+    if(avatarDisplayEl){
+      var myAvatarItem = findItem('avatar', (prof.equipped || {}).avatar);
+      avatarDisplayEl.textContent = myAvatarItem ? myAvatarItem.emoji : '👤';
+    }
+
     var hasAny = false;
     [['avatar', 'profileAvatarSection', 'profileAvatarGrid'], ['badge', 'profileBadgeSection', 'profileBadgeGrid'], ['frame', 'profileFrameSection', 'profileFrameGrid']].forEach(function(row){
       var category = row[0], sectionId = row[1], gridId = row[2];
