@@ -260,31 +260,6 @@
   .highlight-label{ font-family:var(--font-mono); font-size:0.66rem; color:var(--muted-2); letter-spacing:0.06em; }
   .highlight-value{ font-size:0.92rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  .ad-slot{
-    max-width:1120px; margin:0 auto 36px; padding:0 28px;
-  }
-  .ad-slot-inner{
-    border:1px dashed var(--line-strong); border-radius:10px; background:rgba(255,255,255,0.02);
-    color:var(--muted-2); font-family:var(--font-mono); font-size:0.7rem;
-    display:flex; align-items:center; justify-content:center; min-height:90px; text-align:center; padding:12px;
-  }
-
-  .ad-anchor{
-    position:fixed; left:0; right:0; bottom:0; z-index:70;
-    display:flex; align-items:center; justify-content:center; gap:14px;
-    background:rgba(10,12,16,0.96); backdrop-filter:blur(10px);
-    border-top:1px dashed var(--line-strong); padding:10px 16px;
-    min-height:64px;
-  }
-  .ad-anchor-inner{
-    color:var(--muted-2); font-family:var(--font-mono); font-size:0.7rem; text-align:center;
-  }
-  .ad-anchor-close{
-    flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1px solid var(--line-strong);
-    background:var(--panel-2); color:var(--muted); font-size:0.8rem; line-height:1;
-  }
-  .ad-anchor-close:hover{ border-color:var(--green); color:var(--text); }
-
   /* ---------- toast / confirm modal ---------- */
   .toast-container{
     position:fixed; bottom:90px; left:50%; transform:translateX(-50%); z-index:90;
@@ -338,7 +313,6 @@
     background:rgba(255,178,62,0.08); border:1px solid rgba(255,178,62,0.3); border-radius:10px;
   }
   .daily-theme-text{ font-weight:700; font-size:1rem; color:var(--amber); }
-  body.has-ad-anchor footer{ padding-bottom:74px; }
 
   /* ---------- live broadcast section ---------- */
   .live-input{
@@ -831,10 +805,6 @@
     </div>
   </div>
 
-  <div class="ad-slot" data-ad-position="top-banner">
-    <div class="ad-slot-inner">📢 広告スペース（準備中）</div>
-  </div>
-
   <div class="page-tab-bar-outer">
     <div class="page-tab-bar" id="pageTabBar">
       <button type="button" class="page-tab active" data-page="radio">📻 ラジオ</button>
@@ -944,10 +914,6 @@
       <div class="grid-3" id="nowPlayingGrid"></div>
     </div>
   </section>
-
-  <div class="ad-slot" data-ad-position="mid-content">
-    <div class="ad-slot-inner">📢 広告スペース（準備中）</div>
-  </div>
 
   <hr class="divider">
 
@@ -1355,11 +1321,6 @@
   </div>
 </div>
 
-<div class="ad-anchor" id="adAnchor">
-  <div class="ad-anchor-inner">📢 広告スペース（準備中・画面下に追従するタイプ）</div>
-  <button type="button" class="ad-anchor-close" id="adAnchorClose" aria-label="閉じる">×</button>
-</div>
-
 <script>
   // ---------- bars setup ----------
   var barsEl = document.getElementById('bars');
@@ -1698,17 +1659,6 @@
       function onCancel(){ cleanup(false); }
       okBtn.addEventListener('click', onOk);
       cancelBtn.addEventListener('click', onCancel);
-    });
-  }
-
-  // ---------- 画面下のアンカー広告(準備中プレースホルダー) ----------
-  var adAnchor = document.getElementById('adAnchor');
-  var adAnchorClose = document.getElementById('adAnchorClose');
-  if(adAnchor){ document.body.classList.add('has-ad-anchor'); }
-  if(adAnchorClose){
-    adAnchorClose.addEventListener('click', function(){
-      adAnchor.style.display = 'none';
-      document.body.classList.remove('has-ad-anchor');
     });
   }
 
@@ -3357,12 +3307,12 @@
   function renderProfile(){
     var panelLocked = document.getElementById('profileLoginPrompt');
     var content = document.getElementById('profileContent');
+    var selfPanel = document.getElementById('profilePanel');
     if(!content) return;
 
     var publicView = document.getElementById('publicProfileView');
     if(viewingUid){
-      if(panelLocked) panelLocked.style.display = 'none';
-      content.style.display = 'none';
+      if(selfPanel) selfPanel.style.display = 'none';
       ['profileAvatarSection', 'profileBadgeSection', 'profileFrameSection', 'myTracksSection', 'myLikesSection', 'myMessagesSection', 'followingSection'].forEach(function(id){
         var el = document.getElementById(id); if(el) el.style.display = 'none';
       });
@@ -3372,6 +3322,7 @@
       renderPublicProfileView();
       return;
     }
+    if(selfPanel) selfPanel.style.display = '';
     if(publicView) publicView.style.display = 'none';
 
     if(!currentUser){
