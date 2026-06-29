@@ -745,6 +745,12 @@
 
   /* ---------- 動くアバター ---------- */
   .avatar-emoji{ display:inline-block; }
+  .avatar-img-emoji{
+    width:1.3em; height:1.3em; object-fit:cover; border-radius:50%;
+    vertical-align:middle; display:inline-block; margin-top:-2px;
+  }
+  .profile-avatar-display .avatar-img-emoji{ width:100%; height:100%; border-radius:50%; }
+  .shop-item-icon .avatar-img-emoji{ width:48px; height:48px; }
   @keyframes avatar-spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
   @keyframes avatar-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.22); } }
   @keyframes avatar-twinkle{ 0%,100%{ opacity:1; transform:scale(1) rotate(0deg); } 50%{ opacity:0.5; transform:scale(0.82) rotate(10deg); } }
@@ -3268,7 +3274,11 @@
       { id: 'avatar_owl_plain', emoji: '🦉', label: 'ふくろう', cost: 20 },
       { id: 'avatar_ghost_anim', emoji: '👻', label: 'ふわふわおばけ(動く)', cost: 45, anim: 'wobble' },
       { id: 'avatar_owl_anim', emoji: '🦉', label: 'よふくろう(ふわふわ・管理者専用)', cost: 0, adminOnly: true, anim: 'bounce' },
-      { id: 'avatar_admin', emoji: '🦉', label: '管理者ふくろう', cost: 0, adminOnly: true, anim: 'twinkle' }
+      { id: 'avatar_admin', emoji: '🦉', label: '管理者ふくろう', cost: 0, adminOnly: true, anim: 'twinkle' },
+      { id: 'avatar_img_cat', img: 'avatar-sleepycat.png', label: 'ねむねこ(イラスト)', cost: 60 },
+      { id: 'avatar_img_radio', img: 'avatar-retroradio.png', label: 'レトロラジオ(イラスト)', cost: 60 },
+      { id: 'avatar_img_star', img: 'avatar-sleepystar.png', label: 'ねぼしさん(イラスト)', cost: 60 },
+      { id: 'avatar_img_coffee', img: 'avatar-nightcoffee.png', label: 'よふかしコーヒー(イラスト)', cost: 60 }
     ],
     badge: [
       { id: 'badge_star', emoji: '⭐', label: 'スター', cost: 15 },
@@ -3293,6 +3303,7 @@
       { id: 'header_sakura', label: '夜桜(動く)', cost: 35, css: 'pheader-sakura' },
       { id: 'header_stardust', label: '流れ星(動く)', cost: 50, css: 'pheader-stardust' },
       { id: 'header_comet', label: '彗星が飛ぶ夜空(動く)', cost: 55, css: 'pheader-galaxy pheader-comet' },
+      { id: 'header_img_nightcity', img: 'header-nightcity.png', label: '夜の街並み(イラスト)', cost: 70 },
       { id: 'header_admin', label: '管理者専用', cost: 0, css: 'pheader-admin', adminOnly: true }
     ]
   };
@@ -3306,10 +3317,22 @@
     return null;
   }
 
-  // アバターの絵文字を、動くアイテムならアニメーション付きで表示するためのHTML
+  // アバターの絵文字(または画像)を、動くアイテムならアニメーション付きで表示するためのHTML
   function avatarHtml(item){
     if(!item) return '';
-    return '<span class="avatar-emoji' + (item.anim ? ' avatar-anim-' + item.anim : '') + '">' + item.emoji + '</span>';
+    var animCls = item.anim ? ' avatar-anim-' + item.anim : '';
+    if(item.img){
+      return '<img src="' + item.img + '" class="avatar-img-emoji' + animCls + '" alt="' + escapeHtml(item.label || '') + '">';
+    }
+    return '<span class="avatar-emoji' + animCls + '">' + item.emoji + '</span>';
+  }
+
+  // ヘッダーの背景を、画像/CSSグラデーションどちらでも組み立てるためのヘルパー
+  // 戻り値: { cls: 追加クラス(先頭に半角スペース付き), style: style属性の値(中身のみ、空なら'') }
+  function headerBgParts(item){
+    if(!item) return { cls: '', style: '' };
+    if(item.img) return { cls: '', style: 'background-image:url(' + JSON.stringify(item.img) + ');' };
+    return { cls: ' ' + item.css, style: '' };
   }
 
   // ショップのミニプレビュー用：ヘッダーごとの色見本（クラスのCSS解決に頼らず、確実に表示するため）
@@ -3414,7 +3437,9 @@
       var owned = !!(prof.owned && prof.owned[item.id]);
       var equipped = prof.equipped && prof.equipped[category] === item.id;
       var iconHtml;
-      if(item.emoji){
+      if(item.img && category === 'header'){
+        iconHtml = '<div style="width:100%; height:46px; border-radius:8px; background-image:url(' + JSON.stringify(item.img) + '); background-size:cover; background-position:center;"></div>';
+      } else if(item.img || item.emoji){
         iconHtml = '<div class="shop-item-icon">' + avatarHtml(item) + '</div>';
       } else if(category === 'header'){
         var previewBg = HEADER_PREVIEW_BG[item.css] || 'linear-gradient(120deg, #222, #444)';
@@ -3514,8 +3539,9 @@
         headerBannerEl.className = 'profile-header-banner';
         headerBannerEl.style.backgroundImage = 'url(' + JSON.stringify(prof.headerImageUrl) + ')';
       } else {
-        headerBannerEl.className = 'profile-header-banner' + (myHeaderItem ? ' ' + myHeaderItem.css : '');
-        headerBannerEl.style.backgroundImage = '';
+        var myHeaderParts = headerBgParts(myHeaderItem);
+        headerBannerEl.className = 'profile-header-banner' + myHeaderParts.cls;
+        headerBannerEl.style.backgroundImage = myHeaderParts.style ? myHeaderParts.style.replace('background-image:', '').replace(/;$/, '') : '';
       }
     }
     var nameViewEl = document.getElementById('profileDisplayNameView');
@@ -3677,10 +3703,11 @@
     var topTags = Object.keys(tagCounts).sort(function(a, b){ return tagCounts[b] - tagCounts[a]; }).slice(0, 5);
     var bestTrackId = trackIds.slice().sort(function(a, b){ return (allLikes[b] || 0) - (allLikes[a] || 0); })[0];
     var bestTrack = bestTrackId ? communityTracks[bestTrackId] : null;
+    var pubHeaderParts = prof.headerImageUrl ? { cls: '', style: 'background-image:url(' + JSON.stringify(prof.headerImageUrl) + ');' } : headerBgParts(headerItem);
 
     panel.innerHTML =
       '<div class="profile-banner-wrap">' +
-        '<div class="profile-header-banner' + (!prof.headerImageUrl && headerItem ? ' ' + headerItem.css : '') + '"' + (prof.headerImageUrl ? ' style="background-image:url(' + JSON.stringify(prof.headerImageUrl) + ');"' : '') + '></div>' +
+        '<div class="profile-header-banner' + pubHeaderParts.cls + '"' + (pubHeaderParts.style ? ' style="' + pubHeaderParts.style + '"' : '') + '></div>' +
         '<div class="profile-avatar-display">' + (avatarItem ? avatarHtml(avatarItem) : '👤') + '</div>' +
       '</div>' +
       '<div class="profile-name-block">' +
