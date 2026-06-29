@@ -11,7 +11,7 @@
 <meta property="og:url" content="https://eo8883494-png.github.io/">
 <meta property="og:image" content="https://eo8883494-png.github.io/og-image.png">
 <meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:height" content="400">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="zzZ FM（zzzfm） | 眠れない夜の周波数">
 <meta name="twitter:description" content="眠れない夜にだけつながる、みんなで作る架空のラジオ局。">
@@ -1222,29 +1222,32 @@
               <div id="followingSection" style="display:none; margin-top:16px;">
                 <div id="followingList" style="display:flex; flex-direction:column; gap:8px;"></div>
               </div>
+              <button type="button" class="btn" id="profileEditToggleBtn" style="margin-top:16px;">✏️ プロフィールを編集</button>
             </div>
 
-            <div class="profile-edit-card">
-              <p class="snippet-eyebrow">⚙️ 公開する名前・自己紹介</p>
-              <div class="radio-control" style="border-top:none; padding-top:0; margin-top:10px;">
-                <input type="text" id="profileNameInput" class="live-input" placeholder="公開する名前" maxlength="20">
-                <button type="button" class="btn btn-primary" id="profileSaveNameBtn">保存する</button>
+            <div id="profileEditFields" style="display:none;">
+              <div class="profile-edit-card">
+                <p class="snippet-eyebrow">⚙️ 公開する名前・自己紹介</p>
+                <div class="radio-control" style="border-top:none; padding-top:0; margin-top:10px;">
+                  <input type="text" id="profileNameInput" class="live-input" placeholder="公開する名前" maxlength="20">
+                  <button type="button" class="btn btn-primary" id="profileSaveNameBtn">保存する</button>
+                </div>
+                <p class="audio-note" id="profileNameNote">これが、配信・コメント・曲投稿・リスナーの声で使われる名前になります。</p>
+                <div class="radio-control" style="border-top:none; padding-top:0; margin-top:14px;">
+                  <input type="text" id="profileBioInput" class="live-input" placeholder="ひとこと自己紹介を書いてみましょう(60文字まで)" maxlength="60">
+                  <button type="button" class="btn btn-primary" id="profileSaveBioBtn">保存する</button>
+                </div>
               </div>
-              <p class="audio-note" id="profileNameNote">これが、配信・コメント・曲投稿・リスナーの声で使われる名前になります。</p>
-              <div class="radio-control" style="border-top:none; padding-top:0; margin-top:14px;">
-                <input type="text" id="profileBioInput" class="live-input" placeholder="ひとこと自己紹介を書いてみましょう(60文字まで)" maxlength="60">
-                <button type="button" class="btn btn-primary" id="profileSaveBioBtn">保存する</button>
-              </div>
-            </div>
 
-            <div class="profile-edit-card">
-              <p class="snippet-eyebrow">🖼️ ヘッダー画像</p>
-              <p class="broadcast-desc">imgurなどにアップした画像のURLを貼ると、プロフィール上部のバナーに使われます(空欄ならショップのヘッダーが使われます)。</p>
-              <div class="radio-control" style="border-top:none; padding-top:0; margin-top:10px;">
-                <input type="text" id="profileHeaderUrlInput" class="live-input" placeholder="https://...の画像URL">
-                <button type="button" class="btn btn-primary" id="profileSaveHeaderUrlBtn">保存する</button>
+              <div class="profile-edit-card">
+                <p class="snippet-eyebrow">🖼️ ヘッダー画像</p>
+                <p class="broadcast-desc">imgurなどにアップした画像のURLを貼ると、プロフィール上部のバナーに使われます(空欄ならショップのヘッダーが使われます)。</p>
+                <div class="radio-control" style="border-top:none; padding-top:0; margin-top:10px;">
+                  <input type="text" id="profileHeaderUrlInput" class="live-input" placeholder="https://...の画像URL">
+                  <button type="button" class="btn btn-primary" id="profileSaveHeaderUrlBtn">保存する</button>
+                </div>
+                <p class="audio-note" id="profileHeaderUrlNote"></p>
               </div>
-              <p class="audio-note" id="profileHeaderUrlNote"></p>
             </div>
 
             <div class="referral-card">
@@ -3739,6 +3742,14 @@
     var entries = sortedTrackIds.map(function(id){ return { id: id, track: communityTracks[id] }; });
     renderGrid(grid, entries, 'まだ投稿された曲はありません。', publicProfileUnsubs);
   }
+
+  document.getElementById('profileEditToggleBtn').addEventListener('click', function(){
+    var fields = document.getElementById('profileEditFields');
+    var btn = document.getElementById('profileEditToggleBtn');
+    var isOpen = fields.style.display !== 'none';
+    fields.style.display = isOpen ? 'none' : '';
+    btn.textContent = isOpen ? '✏️ プロフィールを編集' : '✕ 編集を閉じる';
+  });
 
   document.getElementById('profileSaveNameBtn').addEventListener('click', function(){
     if(!requireLogin()) return;
