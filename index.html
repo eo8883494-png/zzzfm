@@ -1084,6 +1084,7 @@
         </div>
         <div class="radio-control" style="border-top:none; padding-top:0;">
           <input type="text" id="composerTitle" class="live-input" placeholder="曲名" maxlength="30">
+          <button type="button" class="btn" id="suggestTitleBtn" style="flex:0 0 auto;">🎲 曲名を考える</button>
           <input type="text" id="composerArtist" class="live-input" placeholder="アーティスト名(ラジオネーム)" maxlength="20">
           <select id="composerDuration" class="live-input" style="flex:0 0 110px;">
             <option value="10">10秒</option>
@@ -5041,6 +5042,51 @@
   };
   function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
 
+  // ---------- 🎲 曲名の自動生成 ----------
+  var TITLE_WORD_BANK = {
+    chill: {
+      prefix: ['真夜中の', '眠れない', '静かな', 'ひとりきりの', '誰もいない', '小さな', '遠くの'],
+      suffix: ['子守歌', '部屋', '街', '物語', 'ため息', '時間', '灯り', '余白']
+    },
+    pop: {
+      prefix: ['キミと', '夏色の', '弾ける', '新しい', '今夜だけの', '気まぐれな', 'まばゆい'],
+      suffix: ['メロディ', '一歩', '世界', '予感', 'リズム', 'ストーリー', '魔法']
+    },
+    sad: {
+      prefix: ['さよならの', '届かない', '消えてゆく', '涙の', 'もう一度だけ', '色あせた', 'ひとりぼっちの'],
+      suffix: ['言葉', '声', '欠片', '夜', '手紙', '記憶', '雨音']
+    },
+    energetic: {
+      prefix: ['走り出せ', '燃え上がれ', '限界突破', '覚醒', '今すぐ', '誰よりも速く', '止まらない'],
+      suffix: ['ビート', '衝動', '信号', 'リズム', '鼓動', '一瞬', '閃光']
+    }
+  };
+  var TITLE_GENERIC_PREFIX = ['夜の', '眠れない夜の', 'いつかの', 'まだ見ぬ'];
+  var TITLE_GENERIC_SUFFIX = ['周波数', 'メロディ', '一曲', '物語', 'ラジオ'];
+
+  function generateSongTitle(mood){
+    var bank = TITLE_WORD_BANK[mood];
+    var prefixPool = bank ? bank.prefix : TITLE_GENERIC_PREFIX;
+    var suffixPool = bank ? bank.suffix : TITLE_GENERIC_SUFFIX;
+    return pickRandom(prefixPool) + pickRandom(suffixPool);
+  }
+
+  // 直前と同じ曲名を続けて引かないようにする
+  var lastGeneratedTitle = null;
+  function generateSongTitleFresh(mood){
+    var title;
+    for(var i = 0; i < 6; i++){
+      title = generateSongTitle(mood);
+      if(title !== lastGeneratedTitle) break;
+    }
+    lastGeneratedTitle = title;
+    return title;
+  }
+
+  document.getElementById('suggestTitleBtn').addEventListener('click', function(){
+    composerTitleInput.value = generateSongTitleFresh(autoMood);
+  });
+
   document.querySelectorAll('#autoMoodPicker .wave-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       document.querySelectorAll('#autoMoodPicker .wave-btn').forEach(function(b){ b.classList.remove('active'); });
@@ -5049,16 +5095,35 @@
     });
   });
 
+  // 直前と全く同じ「テンプレ・転調・テンポ・音色・ドラム」を連続で引いてしまうと
+  // 曲が変わったように聞こえないため、前回と完全一致した場合は必ず引き直します
+  var lastAutoComboKey = null;
+  function rollAutoComposeParams(preset){
+    var combo;
+    for(var attempt = 0; attempt < 12; attempt++){
+      var templateId = pickRandom(preset.templateIds);
+      var waveform = pickRandom(preset.waveforms);
+      var tempo = pickRandom(preset.tempos);
+      var transposeSemitones = pickRandom([-5, -3, -2, 0, 2, 3, 5]);
+      var drumVariant = Math.floor(Math.random() * 3);
+      var key = [templateId, waveform, tempo, transposeSemitones, drumVariant].join('|');
+      combo = { templateId: templateId, waveform: waveform, tempo: tempo, transposeSemitones: transposeSemitones, drumVariant: drumVariant, key: key };
+      if(key !== lastAutoComboKey) break;
+    }
+    lastAutoComboKey = combo.key;
+    return combo;
+  }
+
   document.getElementById('autoComposeBtn').addEventListener('click', function(){
     var preset = MOOD_PRESETS[autoMood];
-    var tpl = CHORD_PROGRESSIONS.filter(function(t){ return t.id === pickRandom(preset.templateIds); })[0];
+    var params = rollAutoComposeParams(preset);
+    var tpl = CHORD_PROGRESSIONS.filter(function(t){ return t.id === params.templateId; })[0];
     if(!tpl) return;
 
-    // 毎回ランダムに選ぶ要素：使う波形・テンポ・転調・ドラムのバリエーション
-    var waveform = pickRandom(preset.waveforms);
-    var tempo = pickRandom(preset.tempos);
-    var transposeSemitones = pickRandom([-5, -3, -2, 0, 0, 2, 3, 5]); // 0を多めにして極端になりすぎないように
-    var drumVariant = Math.floor(Math.random() * 3);
+    var waveform = params.waveform;
+    var tempo = params.tempo;
+    var transposeSemitones = params.transposeSemitones;
+    var drumVariant = params.drumVariant;
 
     document.getElementById('composerTempo').value = tempo;
     currentWaveform = waveform;
@@ -5093,6 +5158,7 @@
     });
     composerSequence = newMelody;
     renderNoteSeq();
+    composerTitleInput.value = generateSongTitleFresh(autoMood);
 
     showToast('🎲 「' + tpl.label + '」ベースでおまかせ作曲しました（キー' + (transposeSemitones >= 0 ? '+' : '') + transposeSemitones + '）。気に入らなければ何度でも作り直せます。', 'success');
   });
