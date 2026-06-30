@@ -560,6 +560,7 @@
   .cover.c1{ background:linear-gradient(135deg,#1d3a31,#0b1410); }
   .cover.c2{ background:linear-gradient(135deg,#3a1d2c,#140b10); }
   .cover.c3{ background:linear-gradient(135deg,#3a2d10,#140f0b); }
+  .cover.c4{ background:linear-gradient(135deg,#231d4a,#0c0a1c); }
   .mini-eq{ display:flex; gap:2px; align-items:flex-end; height:20px; position:absolute; right:10px; bottom:10px; }
   .mini-eq span{ width:3px; background:rgba(237,234,226,0.55); animation:barSignal 1s ease-in-out infinite; animation-play-state:paused; }
   .mini-eq span:nth-child(2){ animation-delay:.15s; } .mini-eq span:nth-child(3){ animation-delay:.3s; }
@@ -2728,9 +2729,27 @@
   var HOUSE_TRACKS = {
     t1: { title: '夜行性 ―眠らない街の合図―', artist: 'Night Owl Parade', melody: [220.00, 261.63, 329.63, 392.00], cover: 'c1' },
     t2: { title: '雨上がりのモールス信号', artist: 'Static Letters', melody: [164.81, 196.00, 246.94, 293.66], cover: 'c2' },
-    t3: { title: 'おやすみシグナル', artist: '三日月レイ', melody: [174.61, 220.00, 261.63, 349.23], cover: 'c3' }
+    t3: { title: 'おやすみシグナル', artist: '三日月レイ', melody: [174.61, 220.00, 261.63, 349.23], cover: 'c3' },
+    t4: {
+      title: '午前3時のフロート',
+      artist: '三日月レイ',
+      cover: 'c4',
+      waveform: 'triangle',
+      stepTime: 0.34,
+      durationSeconds: 180,
+      melody: [
+        110.00, null, [220.00, 329.63], null, 261.63, null, null, 392.00,
+        220.00, null, [261.63, 392.00], null, 329.63, null, 392.00, null,
+        87.31, null, [174.61, 261.63], null, 220.00, null, null, 329.63,
+        174.61, null, [220.00, 329.63], null, 261.63, null, 329.63, null,
+        130.81, null, [261.63, 392.00], null, 329.63, null, null, 493.88,
+        261.63, null, [329.63, 493.88], null, 392.00, null, 493.88, null,
+        98.00, null, [196.00, 293.66], null, 246.94, null, null, 329.63,
+        196.00, null, [246.94, 329.63], null, 293.66, 293.66, 246.94, 196.00
+      ]
+    }
   };
-  var COVER_CLASSES = ['c1', 'c2', 'c3'];
+  var COVER_CLASSES = ['c1', 'c2', 'c3', 'c4'];
 
   var communityTracks = {};
   var todaysPlayCounts = {};
