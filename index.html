@@ -602,6 +602,8 @@
   }
   .note-btn:hover{ border-color:var(--green); color:var(--green); transform:translateY(-2px); }
   .note-btn:active{ transform:translateY(1px) scale(0.96); }
+  .note-btn.active{ border-color:var(--green); color:var(--green); background:rgba(61,255,160,0.1); }
+  .note-btn.rest-btn{ width:auto; padding:0 14px; color:var(--muted-2); }
 
   .mode-tabs{ display:flex; gap:8px; margin:18px 0 16px; }
   .mode-tab{
@@ -663,17 +665,22 @@
   .note-chip.chord{ color:var(--pink); background:rgba(255,61,127,0.1); border-color:rgba(255,61,127,0.35); }
 
   /* ---------- 🥁 ドラムグリッド ---------- */
-  .drum-grid{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .drum-part-picker{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .drum-part-btn{
+    font-family:var(--font-mono); font-size:0.72rem; padding:7px 12px; border-radius:18px;
+    border:1px solid var(--line-strong); background:var(--panel-2); color:var(--muted); transition:all .15s;
+  }
+  .drum-part-btn:hover{ border-color:var(--green); color:var(--text); }
+  .drum-part-btn.active{ color:var(--green); border-color:rgba(61,255,160,0.5); background:rgba(61,255,160,0.1); }
+  .drum-grid{ display:flex; flex-direction:column; gap:6px; margin-top:14px; }
   .drum-row{ display:flex; align-items:center; gap:8px; }
-  .drum-row-label{ font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); width:78px; flex-shrink:0; }
+  .drum-row-label{ font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); width:108px; flex-shrink:0; }
   .drum-cells{ display:flex; gap:4px; flex-wrap:wrap; }
   .drum-cell{
     width:24px; height:24px; border-radius:5px; border:1px solid var(--line-strong); background:var(--panel-2);
     flex-shrink:0;
   }
-  .drum-cell.kick.on{ background:var(--pink); border-color:var(--pink); }
-  .drum-cell.snare.on{ background:var(--amber); border-color:var(--amber); }
-  .drum-cell.hihat.on{ background:var(--green); border-color:var(--green); }
+  .drum-cell.on{ background:var(--cell-color, var(--green)); border-color:var(--cell-color, var(--green)); }
   .composer-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
   .lib-empty{ color:var(--muted-2); font-size:0.88rem; grid-column:1/-1; }
 
@@ -1160,6 +1167,11 @@
             <button type="button" class="wave-btn" data-wave="acoustic">🎸 アコギ</button>
             <button type="button" class="wave-btn" data-wave="piano">🎹 ピアノ</button>
           </div>
+          <div class="note-picker" id="bassOctavePicker" style="margin-top:10px;">
+            <button type="button" class="note-btn" data-bass-octave="1">1オクターブ上</button>
+            <button type="button" class="note-btn active" data-bass-octave="0">ふつう</button>
+            <button type="button" class="note-btn" data-bass-octave="-1">1オクターブ下</button>
+          </div>
           <div class="note-picker" id="bassNotePicker">
             <button type="button" class="note-btn" data-freq="65.41">ド</button>
             <button type="button" class="note-btn" data-freq="73.42">レ</button>
@@ -1169,6 +1181,7 @@
             <button type="button" class="note-btn" data-freq="110.00">ラ</button>
             <button type="button" class="note-btn" data-freq="123.47">シ</button>
             <button type="button" class="note-btn" data-freq="130.81">ド(高)</button>
+            <button type="button" class="note-btn rest-btn" data-freq="0">♪― お休み</button>
           </div>
           <div class="note-seq" id="bassNoteSeq"><span class="note-seq-empty">ベースの音をタップして、メロディーの土台を作りましょう</span></div>
           <div class="composer-actions">
@@ -1177,7 +1190,8 @@
           </div>
 
           <p class="snippet-eyebrow" style="margin-top:22px;">🥁 ドラム</p>
-          <p class="broadcast-desc" style="margin-top:0;">マスをタップして、バスドラム・スネア・ハイハットのリズムパターンを作りましょう。</p>
+          <p class="broadcast-desc" style="margin-top:0;">使いたいパーツを選んで、マスをタップしてリズムパターンを作りましょう。</p>
+          <div class="drum-part-picker" id="drumPartPicker"></div>
           <div class="drum-grid" id="drumGrid"></div>
           <div class="composer-actions">
             <button type="button" class="btn" id="drumAddBarBtn">+8コマ追加</button>
@@ -2965,9 +2979,95 @@
       hnoise.start(startTime); hnoise.stop(startTime + 0.06);
       return { source: hnoise, gain: hg };
     }
+    if(type === 'ohihat'){
+      // オープンハイハット：クローズより減衰が長い
+      var ohnoise = ctx.createBufferSource(); ohnoise.buffer = getNoiseBuffer(ctx);
+      var ohp = ctx.createBiquadFilter(); ohp.type = 'highpass'; ohp.frequency.value = 6500;
+      var ohg = ctx.createGain();
+      ohg.gain.setValueAtTime(0.0001, startTime);
+      ohg.gain.exponentialRampToValueAtTime(0.28 * volume, startTime + 0.002);
+      ohg.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.32);
+      ohnoise.connect(ohp).connect(ohg).connect(destination);
+      ohnoise.start(startTime); ohnoise.stop(startTime + 0.34);
+      return { source: ohnoise, gain: ohg };
+    }
+    if(type === 'crash'){
+      var cnoise = ctx.createBufferSource(); cnoise.buffer = getNoiseBuffer(ctx);
+      var chp = ctx.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 4500;
+      var cg = ctx.createGain();
+      cg.gain.setValueAtTime(0.0001, startTime);
+      cg.gain.exponentialRampToValueAtTime(0.4 * volume, startTime + 0.004);
+      cg.gain.exponentialRampToValueAtTime(0.0001, startTime + 1.1);
+      cnoise.connect(chp).connect(cg).connect(destination);
+      cnoise.start(startTime); cnoise.stop(startTime + 1.15);
+      return { source: cnoise, gain: cg };
+    }
+    if(type === 'ride'){
+      var rnoise = ctx.createBufferSource(); rnoise.buffer = getNoiseBuffer(ctx);
+      var rbp = ctx.createBiquadFilter(); rbp.type = 'bandpass'; rbp.frequency.value = 5500; rbp.Q.value = 0.9;
+      var rg = ctx.createGain();
+      rg.gain.setValueAtTime(0.0001, startTime);
+      rg.gain.exponentialRampToValueAtTime(0.22 * volume, startTime + 0.003);
+      rg.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.5);
+      rnoise.connect(rbp).connect(rg).connect(destination);
+      rnoise.start(startTime); rnoise.stop(startTime + 0.55);
+      var ro = ctx.createOscillator(); ro.type = 'sine'; ro.frequency.value = 800;
+      var rog = ctx.createGain();
+      rog.gain.setValueAtTime(0.0001, startTime);
+      rog.gain.exponentialRampToValueAtTime(0.06 * volume, startTime + 0.003);
+      rog.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.3);
+      ro.connect(rog).connect(destination);
+      ro.start(startTime); ro.stop(startTime + 0.32);
+      return { source: rnoise, gain: rg };
+    }
+    if(type === 'tomhigh' || type === 'tommid' || type === 'tomlow'){
+      var freqMap = { tomhigh: 220, tommid: 160, tomlow: 110 };
+      var to = ctx.createOscillator(); to.type = 'sine';
+      to.frequency.setValueAtTime(freqMap[type], startTime);
+      to.frequency.exponentialRampToValueAtTime(freqMap[type] * 0.6, startTime + 0.18);
+      var tg = ctx.createGain();
+      tg.gain.setValueAtTime(0.0001, startTime);
+      tg.gain.exponentialRampToValueAtTime(0.6 * volume, startTime + 0.006);
+      tg.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.28);
+      to.connect(tg).connect(destination);
+      to.start(startTime); to.stop(startTime + 0.3);
+      return { source: to, gain: tg };
+    }
+    if(type === 'clap'){
+      // クラップ：3連の短いノイズバーストで「パパパン」を表現
+      var lastNode = null;
+      [0, 0.012, 0.024].forEach(function(delay){
+        var clnoise = ctx.createBufferSource(); clnoise.buffer = getNoiseBuffer(ctx);
+        var clbp = ctx.createBiquadFilter(); clbp.type = 'bandpass'; clbp.frequency.value = 1100; clbp.Q.value = 1.2;
+        var clg = ctx.createGain();
+        var t0 = startTime + delay;
+        clg.gain.setValueAtTime(0.0001, t0);
+        clg.gain.exponentialRampToValueAtTime(0.35 * volume, t0 + 0.003);
+        clg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+        clnoise.connect(clbp).connect(clg).connect(destination);
+        clnoise.start(t0); clnoise.stop(t0 + 0.1);
+        lastNode = { source: clnoise, gain: clg };
+      });
+      return lastNode;
+    }
+    if(type === 'rim'){
+      var rio = ctx.createOscillator(); rio.type = 'square'; rio.frequency.value = 1800;
+      var rig = ctx.createGain();
+      rig.gain.setValueAtTime(0.0001, startTime);
+      rig.gain.exponentialRampToValueAtTime(0.3 * volume, startTime + 0.001);
+      rig.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.04);
+      rio.connect(rig).connect(destination);
+      rio.start(startTime); rio.stop(startTime + 0.05);
+      return { source: rio, gain: rig };
+    }
     return null;
   }
-  var DRUM_LABELS = { kick: '🥁 バスドラム', snare: '🪘 スネア', hihat: '🎩 ハイハット' };
+  var DRUM_LABELS = {
+    kick: '🥁 バスドラム', snare: '🪘 スネア', hihat: '🎩 ハイハット(閉)',
+    ohihat: '🎩 ハイハット(開)', crash: '💥 クラッシュ', ride: '🛎️ ライド',
+    tomhigh: '🥁 タム(高)', tommid: '🥁 タム(中)', tomlow: '🥁 タム(低)',
+    clap: '👏 クラップ', rim: '🥢 リムショット'
+  };
 
   // ---------- 🎸 複数レーン（メロディ・ベース・ドラム）を同時再生 ----------
   function scheduleLanes(id, lanes, stepTime){
@@ -4606,7 +4706,19 @@
   var bassSequence = [];
   var bassWaveform = 'sine';
   var DRUM_STEP_COUNT = 16;
-  var drumPattern = { kick: new Array(DRUM_STEP_COUNT).fill(false), snare: new Array(DRUM_STEP_COUNT).fill(false), hihat: new Array(DRUM_STEP_COUNT).fill(false) };
+
+  // 選べるドラムパーツの全リスト（playDrumHitで合成している音色と対応）
+  var ALL_DRUM_PARTS = [
+    ['kick', '🥁 バスドラム'], ['snare', '🪘 スネア'],
+    ['hihat', '🎩 ハイハット(閉)'], ['ohihat', '🎩 ハイハット(開)'],
+    ['clap', '👏 クラップ'], ['rim', '🥢 リムショット'],
+    ['tomhigh', '🥁 タム(高)'], ['tommid', '🥁 タム(中)'], ['tomlow', '🥁 タム(低)'],
+    ['crash', '💥 クラッシュ'], ['ride', '🛎️ ライド']
+  ];
+  // 初期状態は定番の3点（バスドラム・スネア・ハイハット）だけ表示。増やすかどうかは自由に選べます
+  var activeDrumParts = ['kick', 'snare', 'hihat'];
+  var drumPattern = {};
+  ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
 
   document.getElementById('bandModeToggle').addEventListener('click', function(){
     bandModeEnabled = !bandModeEnabled;
@@ -4616,19 +4728,30 @@
   });
 
   var bassNoteSeqEl = document.getElementById('bassNoteSeq');
+  var bassOctaveShift = 0;
   function renderBassSeq(){
     if(bassSequence.length === 0){
       bassNoteSeqEl.innerHTML = '<span class="note-seq-empty">ベースの音をタップして、メロディーの土台を作りましょう</span>';
       return;
     }
     bassNoteSeqEl.innerHTML = bassSequence.map(function(n){
-      return '<span class="note-chip">' + n.label + '</span>';
+      var cls = 'note-chip' + (n.freq === 0 ? ' rest' : '');
+      return '<span class="' + cls + '">' + n.label + '</span>';
     }).join('');
   }
+  document.querySelectorAll('#bassOctavePicker .note-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('#bassOctavePicker .note-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      bassOctaveShift = parseInt(btn.getAttribute('data-bass-octave'), 10);
+    });
+  });
   document.querySelectorAll('#bassNotePicker .note-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       if(bassSequence.length >= MAX_NOTES) return;
-      bassSequence.push({ freq: parseFloat(btn.getAttribute('data-freq')), label: btn.textContent });
+      var rawFreq = parseFloat(btn.getAttribute('data-freq'));
+      var freq = rawFreq === 0 ? 0 : rawFreq * Math.pow(2, bassOctaveShift);
+      bassSequence.push({ freq: freq, label: btn.textContent });
       renderBassSeq();
     });
   });
@@ -4648,13 +4771,44 @@
     });
   });
 
-  var DRUM_ROWS = [['kick', '🥁 バスドラム'], ['snare', '🪘 スネア'], ['hihat', '🎩 ハイハット']];
+  // ドラムパーツの色分け（グリッド上での見分けやすさのため、種類ごとに色相をずらす）
+  var DRUM_PART_COLORS = {
+    kick: '#ff3d7f', snare: '#ffb23e', hihat: '#3dffa0', ohihat: '#2dd4bf',
+    clap: '#a78bfa', rim: '#fb923c', tomhigh: '#60a5fa', tommid: '#38bdf8', tomlow: '#0ea5e9',
+    crash: '#facc15', ride: '#f472b6'
+  };
+
+  function renderDrumPartPicker(){
+    var picker = document.getElementById('drumPartPicker');
+    picker.innerHTML = ALL_DRUM_PARTS.map(function(p){
+      var key = p[0], label = p[1];
+      var active = activeDrumParts.indexOf(key) !== -1;
+      return '<button type="button" class="drum-part-btn' + (active ? ' active' : '') + '" data-part="' + key + '">' + label + '</button>';
+    }).join('');
+    picker.querySelectorAll('.drum-part-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-part');
+        var idx = activeDrumParts.indexOf(key);
+        if(idx !== -1){ activeDrumParts.splice(idx, 1); }
+        else { activeDrumParts.push(key); }
+        renderDrumPartPicker();
+        renderDrumGrid();
+      });
+    });
+  }
+
   function renderDrumGrid(){
     var grid = document.getElementById('drumGrid');
-    grid.innerHTML = DRUM_ROWS.map(function(row){
+    var rows = ALL_DRUM_PARTS.filter(function(p){ return activeDrumParts.indexOf(p[0]) !== -1; });
+    if(rows.length === 0){
+      grid.innerHTML = '<p class="comment-empty">上のボタンから、使いたいドラムパーツを選んでください。</p>';
+      return;
+    }
+    grid.innerHTML = rows.map(function(row){
       var key = row[0], label = row[1];
+      var color = DRUM_PART_COLORS[key] || 'var(--green)';
       var cells = drumPattern[key].map(function(on, i){
-        return '<button type="button" class="drum-cell ' + key + (on ? ' on' : '') + '" data-row="' + key + '" data-i="' + i + '"></button>';
+        return '<button type="button" class="drum-cell' + (on ? ' on' : '') + '" style="--cell-color:' + color + ';" data-row="' + key + '" data-i="' + i + '"></button>';
       }).join('');
       return '<div class="drum-row"><span class="drum-row-label">' + label + '</span><div class="drum-cells">' + cells + '</div></div>';
     }).join('');
@@ -4667,14 +4821,15 @@
       });
     });
   }
+  renderDrumPartPicker();
   renderDrumGrid();
   document.getElementById('drumAddBarBtn').addEventListener('click', function(){
     DRUM_STEP_COUNT += 8;
-    DRUM_ROWS.forEach(function(row){ drumPattern[row[0]].push(false, false, false, false, false, false, false, false); });
+    ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]].push(false, false, false, false, false, false, false, false); });
     renderDrumGrid();
   });
   document.getElementById('drumResetBtn').addEventListener('click', function(){
-    DRUM_ROWS.forEach(function(row){ drumPattern[row[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
+    ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
     renderDrumGrid();
   });
 
@@ -4685,12 +4840,12 @@
       if(bassSequence.length > 0){
         lanes.push({ type: 'bass', waveform: bassWaveform, octaveShift: 0, volume: 0.85, notes: bassSequence.map(function(n){ return n.freq; }) });
       }
-      var drumHasAny = DRUM_ROWS.some(function(row){ return drumPattern[row[0]].some(function(v){ return v; }); });
+      var drumHasAny = ALL_DRUM_PARTS.some(function(p){ return drumPattern[p[0]].some(function(v){ return v; }); });
       if(drumHasAny){
         var drumNotes = [];
         for(var i = 0; i < DRUM_STEP_COUNT; i++){
           var hits = [];
-          DRUM_ROWS.forEach(function(row){ if(drumPattern[row[0]][i]) hits.push(row[0]); });
+          ALL_DRUM_PARTS.forEach(function(p){ if(drumPattern[p[0]][i]) hits.push(p[0]); });
           drumNotes.push(hits.length ? hits : null);
         }
         lanes.push({ type: 'drums', volume: 0.9, notes: drumNotes });
@@ -4701,7 +4856,7 @@
   function resetBandInputs(){
     bandModeEnabled = false;
     bassSequence = [];
-    DRUM_ROWS.forEach(function(row){ drumPattern[row[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
+    ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
     document.getElementById('bandModeSection').style.display = 'none';
     var toggleBtn = document.getElementById('bandModeToggle');
     toggleBtn.textContent = '🎸 バンド編成にする（ベース・ドラムを追加）';
