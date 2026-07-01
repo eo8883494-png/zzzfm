@@ -654,6 +654,13 @@
     border-color:rgba(255,178,62,0.4); background:linear-gradient(180deg, rgba(255,178,62,0.06), var(--panel-2) 60%);
   }
   .composer-step-auto .composer-step-num{ color:var(--amber); border-color:rgba(255,178,62,0.4); background:rgba(255,178,62,0.1); }
+
+  /* ---------- 🎚️ ミキサー・エフェクト ---------- */
+  .mixer-panel{ display:flex; flex-direction:column; gap:12px; margin-top:10px; }
+  .mixer-row{ display:flex; align-items:center; gap:12px; }
+  .mixer-label{ font-family:var(--font-mono); font-size:0.76rem; color:var(--muted); width:112px; flex-shrink:0; }
+  .mixer-slider{ flex:1; accent-color:var(--green); height:4px; }
+  .mixer-value{ font-family:var(--font-mono); font-size:0.72rem; color:var(--muted-2); width:42px; text-align:right; flex-shrink:0; }
   .chord-template-picker{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
   .chord-template-card{
     display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
@@ -1291,6 +1298,54 @@
         <div class="composer-step">
           <div class="composer-step-head">
             <span class="composer-step-num">4</span>
+            <div><h3>ミキサー・エフェクト</h3><p>各パートの音量バランスと、部屋の響きを調整します。</p></div>
+          </div>
+          <p class="snippet-eyebrow">🎚️ ミキサー（各パートの音量）</p>
+          <div class="mixer-panel" id="mixerPanel">
+            <div class="mixer-row">
+              <span class="mixer-label">🎵 メロディ</span>
+              <input type="range" class="mixer-slider" id="mixerMelody" min="0" max="150" value="100">
+              <span class="mixer-value" id="mixerMelodyValue">100%</span>
+            </div>
+            <div class="mixer-row">
+              <span class="mixer-label">🎼 コード伴奏</span>
+              <input type="range" class="mixer-slider" id="mixerChord" min="0" max="150" value="100">
+              <span class="mixer-value" id="mixerChordValue">100%</span>
+            </div>
+            <div class="mixer-row">
+              <span class="mixer-label">🎸 ベース</span>
+              <input type="range" class="mixer-slider" id="mixerBass" min="0" max="150" value="100">
+              <span class="mixer-value" id="mixerBassValue">100%</span>
+            </div>
+            <div class="mixer-row">
+              <span class="mixer-label">🥁 ドラム</span>
+              <input type="range" class="mixer-slider" id="mixerDrums" min="0" max="150" value="100">
+              <span class="mixer-value" id="mixerDrumsValue">100%</span>
+            </div>
+          </div>
+
+          <p class="snippet-eyebrow" style="margin-top:20px;">🌙 エフェクト</p>
+          <p class="broadcast-desc" style="margin-top:0;">「眠れない夜」らしい残響・エコーを足せます。投稿した曲にもそのまま反映されます。</p>
+          <div class="mixer-panel">
+            <div class="mixer-row">
+              <span class="mixer-label">🌌 リバーブ</span>
+              <input type="range" class="mixer-slider" id="fxReverb" min="0" max="100" value="0">
+              <span class="mixer-value" id="fxReverbValue">0%</span>
+            </div>
+            <div class="mixer-row">
+              <span class="mixer-label">🔁 ディレイ(エコー)</span>
+              <input type="range" class="mixer-slider" id="fxDelay" min="0" max="100" value="0">
+              <span class="mixer-value" id="fxDelayValue">0%</span>
+            </div>
+          </div>
+          <div class="composer-actions">
+            <button type="button" class="btn" id="mixerResetBtn">初期値に戻す</button>
+          </div>
+        </div>
+
+        <div class="composer-step">
+          <div class="composer-step-head">
+            <span class="composer-step-num">5</span>
             <div><h3>ムード・投稿</h3><p>雰囲気タグをつけて、完成した曲を投稿しましょう。</p></div>
           </div>
           <p class="snippet-eyebrow">🏷️ ムード（最大3つまで・任意）</p>
@@ -3003,6 +3058,51 @@
     return melodyCtx;
   }
 
+  // ---------- 🌙 エフェクト（リバーブ・ディレイ） ----------
+  // 「眠れない夜のラジオ」らしい残響・エコーを、曲ごとの設定として持たせられるようにします
+  var reverbImpulseCache = {};
+  function getReverbImpulse(ctx, seconds){
+    var key = ctx.sampleRate + '_' + seconds;
+    if(reverbImpulseCache[key]) return reverbImpulseCache[key];
+    var length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+    var impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for(var ch = 0; ch < 2; ch++){
+      var data = impulse.getChannelData(ch);
+      for(var i = 0; i < length; i++){
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5);
+      }
+    }
+    reverbImpulseCache[key] = impulse;
+    return impulse;
+  }
+  // レーンの音はすべてこの関数が返す「入り口(masterBus)」に繋ぐと、ドライ音＋リバーブ＋ディレイが
+  // まとめて最終出力(destination)に送られます。effectsが空なら、ただの素通し(ドライのみ)になります。
+  function buildEffectChain(ctx, destination, effects){
+    var input = ctx.createGain();
+    input.connect(destination);
+    if(!effects) return input;
+
+    if(effects.reverb > 0){
+      var convolver = ctx.createConvolver();
+      convolver.buffer = getReverbImpulse(ctx, 2.4);
+      var reverbGain = ctx.createGain();
+      reverbGain.gain.value = effects.reverb * 0.9;
+      input.connect(convolver).connect(reverbGain).connect(destination);
+    }
+    if(effects.delay > 0){
+      var delayNode = ctx.createDelay(1.5);
+      delayNode.delayTime.value = 0.28;
+      var feedback = ctx.createGain();
+      feedback.gain.value = 0.35;
+      var delayWet = ctx.createGain();
+      delayWet.gain.value = effects.delay * 0.7;
+      input.connect(delayNode);
+      delayNode.connect(feedback).connect(delayNode);
+      delayNode.connect(delayWet).connect(destination);
+    }
+    return input;
+  }
+
   // ---------- 🎸🎹🎻🎺 サンプル楽器（実際に録音された音を、ピッチを変えて再生） ----------
   var GUITAR_BASE_FREQ = 261.70; // 録音した単音の検出ピッチ（ほぼC4=ド）
 
@@ -3198,10 +3298,11 @@
   };
 
   // ---------- 🎸 複数レーン（メロディ・ベース・ドラム）を同時再生 ----------
-  function scheduleLanes(id, lanes, stepTime){
+  function scheduleLanes(id, lanes, stepTime, effects){
     var ctx = ensureMelodyCtx();
     stepTime = stepTime || 0.32;
     var maxLen = lanes.reduce(function(m, l){ return Math.max(m, (l.notes || []).length); }, 0);
+    var masterBus = buildEffectChain(ctx, ctx.destination, effects);
 
     function doSchedule(){
       activeNodes = [];
@@ -3216,7 +3317,7 @@
           if(lane.type === 'drums'){
             var hits = Array.isArray(step) ? step : [step];
             hits.forEach(function(hit){
-              var node = playDrumHit(hit, ctx, ctx.destination, t, laneVolume);
+              var node = playDrumHit(hit, ctx, masterBus, t, laneVolume);
               if(node) activeNodes.push(node);
             });
             return;
@@ -3229,7 +3330,7 @@
             var freq = rawFreq * octaveMul;
             var noteTime = isSample ? t + fi * 0.014 : t;
             if(isSample){
-              var node = playSampleNote(ctx, ctx.destination, waveform, freq, noteTime, levelScale * laneVolume);
+              var node = playSampleNote(ctx, masterBus, waveform, freq, noteTime, levelScale * laneVolume);
               if(node) activeNodes.push(node);
               return;
             }
@@ -3239,14 +3340,14 @@
             g.gain.setValueAtTime(0.0001, noteTime);
             g.gain.exponentialRampToValueAtTime(peak, noteTime + 0.02);
             g.gain.exponentialRampToValueAtTime(0.0001, noteTime + stepTime * 0.85);
-            o.connect(g).connect(ctx.destination);
+            o.connect(g).connect(masterBus);
             o.start(noteTime); o.stop(noteTime + stepTime);
             activeNodes.push({ source: o, gain: g });
           });
         });
       });
       melodyTimer = setTimeout(function(){
-        if(currentMelodyId === id) scheduleLanes(id, lanes, stepTime);
+        if(currentMelodyId === id) scheduleLanes(id, lanes, stepTime, effects);
       }, maxLen * stepTime * 1000);
     }
 
@@ -3257,11 +3358,12 @@
     } else { doSchedule(); }
   }
 
-  function scheduleMelody(id, notes, waveform, stepTime, octaveShift){
+  function scheduleMelody(id, notes, waveform, stepTime, octaveShift, effects){
     var ctx = ensureMelodyCtx();
     stepTime = stepTime || 0.32;
     var octaveMul = Math.pow(2, octaveShift || 0);
     var isSample = isSampleWaveform(waveform);
+    var masterBus = buildEffectChain(ctx, ctx.destination, effects);
 
     function doSchedule(){
       activeNodes = []; // 前のループの音はもう鳴り終わっているはずなので、参照だけ整理
@@ -3275,7 +3377,7 @@
           var freq = rawFreq * octaveMul;
           var noteTime = isSample ? t + fi * 0.014 : t; // コードはわずかにストロークをずらす
           if(isSample){
-            var node = playSampleNote(ctx, ctx.destination, waveform, freq, noteTime, levelScale);
+            var node = playSampleNote(ctx, masterBus, waveform, freq, noteTime, levelScale);
             if(node) activeNodes.push(node);
             return;
           }
@@ -3284,14 +3386,14 @@
           g.gain.setValueAtTime(0.0001, noteTime);
           g.gain.exponentialRampToValueAtTime(0.5 * levelScale, noteTime + 0.02);
           g.gain.exponentialRampToValueAtTime(0.0001, noteTime + stepTime * 0.85);
-          o.connect(g).connect(ctx.destination);
+          o.connect(g).connect(masterBus);
           o.start(noteTime);
           o.stop(noteTime + stepTime);
           activeNodes.push({ source: o, gain: g });
         });
       });
       melodyTimer = setTimeout(function(){
-        if(currentMelodyId === id) scheduleMelody(id, notes, waveform, stepTime, octaveShift);
+        if(currentMelodyId === id) scheduleMelody(id, notes, waveform, stepTime, octaveShift, effects);
       }, notes.length * stepTime * 1000);
     }
 
@@ -3328,9 +3430,9 @@
     stopMelody();
     currentMelodyId = id;
     if(t.lanes && t.lanes.length){
-      scheduleLanes(id, t.lanes, t.stepTime);
+      scheduleLanes(id, t.lanes, t.stepTime, t.effects);
     } else {
-      scheduleMelody(id, t.melody, t.waveform, t.stepTime, t.octaveShift);
+      scheduleMelody(id, t.melody, t.waveform, t.stepTime, t.octaveShift, t.effects);
     }
     refreshPlayingUI();
     if(t.durationSeconds){
@@ -3355,11 +3457,12 @@
   }
 
   // ---------- WAVファイルとして書き出し・ダウンロード ----------
-  function renderLanesToBuffer(lanes, durationSeconds, stepTime){
+  function renderLanesToBuffer(lanes, durationSeconds, stepTime, effects){
     var sampleRate = 44100;
     var length = Math.max(1, Math.ceil(durationSeconds * sampleRate));
     var offlineCtx = new OfflineAudioContext(1, length, sampleRate);
     stepTime = stepTime || 0.32;
+    var masterBus = buildEffectChain(offlineCtx, offlineCtx.destination, effects);
 
     function doRender(){
       lanes.forEach(function(lane){
@@ -3377,7 +3480,7 @@
             if(noteStart >= durationSeconds) return;
             if(lane.type === 'drums'){
               var hits = Array.isArray(step) ? step : [step];
-              hits.forEach(function(hit){ playDrumHit(hit, offlineCtx, offlineCtx.destination, noteStart, laneVolume); });
+              hits.forEach(function(hit){ playDrumHit(hit, offlineCtx, masterBus, noteStart, laneVolume); });
               return;
             }
             var freqs = Array.isArray(step) ? step : [step];
@@ -3387,7 +3490,7 @@
               var freq = rawFreq * octaveMul;
               var noteTime = isSample ? noteStart + fi * 0.014 : noteStart;
               if(isSample){
-                playSampleNote(offlineCtx, offlineCtx.destination, waveform, freq, noteTime, levelScale * laneVolume);
+                playSampleNote(offlineCtx, masterBus, waveform, freq, noteTime, levelScale * laneVolume);
                 return;
               }
               var o = offlineCtx.createOscillator(); o.type = waveform; o.frequency.value = freq;
@@ -3396,7 +3499,7 @@
               g.gain.setValueAtTime(0.0001, noteTime);
               g.gain.exponentialRampToValueAtTime(peak, noteTime + 0.02);
               g.gain.exponentialRampToValueAtTime(0.0001, Math.min(durationSeconds - 0.001, noteTime + stepTime * 0.85));
-              o.connect(g).connect(offlineCtx.destination);
+              o.connect(g).connect(masterBus);
               o.start(noteTime);
               o.stop(Math.min(durationSeconds, noteTime + stepTime));
             });
@@ -3416,8 +3519,8 @@
   }
 
   // 旧形式（単一メロディ）との互換のため、内部で1本レーンに変換して書き出します
-  function renderTrackToBuffer(notes, durationSeconds, waveform, stepTime, octaveShift){
-    return renderLanesToBuffer([{ type: 'melody', waveform: waveform, octaveShift: octaveShift, notes: notes }], durationSeconds, stepTime);
+  function renderTrackToBuffer(notes, durationSeconds, waveform, stepTime, octaveShift, effects){
+    return renderLanesToBuffer([{ type: 'melody', waveform: waveform, octaveShift: octaveShift, notes: notes }], durationSeconds, stepTime, effects);
   }
 
   function audioBufferToWav(buffer){
@@ -3454,7 +3557,7 @@
     if(!lanes.some(function(l){ return l.notes && l.notes.length; })) return;
     var originalLabel = btn ? btn.textContent : null;
     if(btn){ btn.textContent = '…'; btn.disabled = true; }
-    renderLanesToBuffer(lanes, t.durationSeconds || 10, t.stepTime).then(function(buffer){
+    renderLanesToBuffer(lanes, t.durationSeconds || 10, t.stepTime, t.effects).then(function(buffer){
       var blob = audioBufferToWav(buffer);
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
@@ -4896,6 +4999,33 @@
   var appliedTemplateLabel = '';
   var DRUM_STEP_COUNT = 16;
 
+  // ---------- 🎚️ ミキサー・エフェクト ----------
+  var mixerVolumes = { melody: 1, chord: 1, bass: 1, drums: 1 };
+  var mixerEffects = { reverb: 0, delay: 0 };
+  function wireMixerSlider(sliderId, valueId, targetObj, key, isPercentOf100){
+    var slider = document.getElementById(sliderId);
+    var valueEl = document.getElementById(valueId);
+    slider.addEventListener('input', function(){
+      var pct = parseInt(slider.value, 10);
+      targetObj[key] = pct / 100;
+      valueEl.textContent = pct + '%';
+    });
+  }
+  wireMixerSlider('mixerMelody', 'mixerMelodyValue', mixerVolumes, 'melody');
+  wireMixerSlider('mixerChord', 'mixerChordValue', mixerVolumes, 'chord');
+  wireMixerSlider('mixerBass', 'mixerBassValue', mixerVolumes, 'bass');
+  wireMixerSlider('mixerDrums', 'mixerDrumsValue', mixerVolumes, 'drums');
+  wireMixerSlider('fxReverb', 'fxReverbValue', mixerEffects, 'reverb');
+  wireMixerSlider('fxDelay', 'fxDelayValue', mixerEffects, 'delay');
+  document.getElementById('mixerResetBtn').addEventListener('click', function(){
+    mixerVolumes.melody = 1; mixerVolumes.chord = 1; mixerVolumes.bass = 1; mixerVolumes.drums = 1;
+    mixerEffects.reverb = 0; mixerEffects.delay = 0;
+    [['mixerMelody','mixerMelodyValue',100], ['mixerChord','mixerChordValue',100], ['mixerBass','mixerBassValue',100], ['mixerDrums','mixerDrumsValue',100], ['fxReverb','fxReverbValue',0], ['fxDelay','fxDelayValue',0]].forEach(function(row){
+      document.getElementById(row[0]).value = row[2];
+      document.getElementById(row[1]).textContent = row[2] + '%';
+    });
+  });
+
   // 選べるドラムパーツの全リスト（playDrumHitで合成している音色と対応）
   var ALL_DRUM_PARTS = [
     ['kick', '🥁 バスドラム'], ['snare', '🪘 スネア'],
@@ -5438,13 +5568,13 @@
 
   // 今の入力内容から、再生・ダウンロード・投稿で共通して使う「lanes」を組み立てます
   function buildComposerLanes(){
-    var lanes = [{ type: 'melody', waveform: currentWaveform, octaveShift: 0, notes: composerSequence.map(function(n){ return n.freq; }) }];
+    var lanes = [{ type: 'melody', waveform: currentWaveform, octaveShift: 0, volume: mixerVolumes.melody, notes: composerSequence.map(function(n){ return n.freq; }) }];
     if(bandModeEnabled){
       if(chordSequence.length > 0){
-        lanes.push({ type: 'chord', waveform: 'triangle', octaveShift: 0, volume: 0.45, notes: chordSequence.map(function(n){ return n.freq; }) });
+        lanes.push({ type: 'chord', waveform: 'triangle', octaveShift: 0, volume: 0.45 * mixerVolumes.chord, notes: chordSequence.map(function(n){ return n.freq; }) });
       }
       if(bassSequence.length > 0){
-        lanes.push({ type: 'bass', waveform: bassWaveform, octaveShift: 0, volume: 0.85, notes: bassSequence.map(function(n){ return n.freq; }) });
+        lanes.push({ type: 'bass', waveform: bassWaveform, octaveShift: 0, volume: 0.85 * mixerVolumes.bass, notes: bassSequence.map(function(n){ return n.freq; }) });
       }
       var drumHasAny = ALL_DRUM_PARTS.some(function(p){ return drumPattern[p[0]].some(function(v){ return v; }); });
       if(drumHasAny){
@@ -5454,10 +5584,13 @@
           ALL_DRUM_PARTS.forEach(function(p){ if(drumPattern[p[0]][i]) hits.push(p[0]); });
           drumNotes.push(hits.length ? hits : null);
         }
-        lanes.push({ type: 'drums', volume: 0.9, notes: drumNotes });
+        lanes.push({ type: 'drums', volume: 0.9 * mixerVolumes.drums, notes: drumNotes });
       }
     }
     return lanes;
+  }
+  function buildComposerEffects(){
+    return { reverb: mixerEffects.reverb, delay: mixerEffects.delay };
   }
   function resetBandInputs(){
     bandModeEnabled = false;
@@ -5472,6 +5605,7 @@
     renderBassSeq();
     renderDrumGrid();
     renderAppliedTemplateStatus();
+    document.getElementById('mixerResetBtn').click();
   }
 
   document.getElementById('previewNoteBtn').addEventListener('click', function(){
@@ -5479,7 +5613,7 @@
     if(!lanes.some(function(l){ return l.notes && l.notes.length; })) return;
     var duration = parseInt(document.getElementById('composerDuration').value, 10);
     var stepTime = parseFloat(document.getElementById('composerTempo').value);
-    playTrack('__preview__', { lanes: lanes, durationSeconds: duration, stepTime: stepTime }, false);
+    playTrack('__preview__', { lanes: lanes, durationSeconds: duration, stepTime: stepTime, effects: buildComposerEffects() }, false);
   });
 
   document.getElementById('downloadDraftBtn').addEventListener('click', function(){
@@ -5488,7 +5622,7 @@
     var title = (composerTitleInput.value || 'zzzfm-track').trim();
     var duration = parseInt(document.getElementById('composerDuration').value, 10);
     var stepTime = parseFloat(document.getElementById('composerTempo').value);
-    downloadTrack({ title: title, lanes: lanes, durationSeconds: duration, stepTime: stepTime }, this);
+    downloadTrack({ title: title, lanes: lanes, durationSeconds: duration, stepTime: stepTime, effects: buildComposerEffects() }, this);
   });
 
   document.getElementById('submitTrackBtn').addEventListener('click', function(){
@@ -5501,7 +5635,9 @@
     if(composerSequence.length < 2){ composerNoteText.textContent = '音符を2つ以上選んでください。'; return; }
     var lanes = buildComposerLanes();
     var isBand = lanes.length > 1;
+    var effects = buildComposerEffects();
     var trackData = { title: title, artist: artist, uid: currentUser.uid, durationSeconds: duration, stepTime: stepTime, tags: composerSelectedTags.slice(), createdAt: Date.now() };
+    if(effects.reverb > 0 || effects.delay > 0){ trackData.effects = effects; }
     if(isBand){
       trackData.lanes = lanes;
       trackData.isBand = true;
