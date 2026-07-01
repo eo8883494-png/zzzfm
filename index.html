@@ -1236,6 +1236,10 @@
           <p class="broadcast-desc" style="margin-top:0;">よく使われる進行を選ぶと、ベース・コード・簡単なドラムが自動で組まれます（バンド編成が自動でONになります）。</p>
           <div class="chord-template-picker" id="chordTemplatePicker"></div>
 
+          <p class="snippet-eyebrow" style="margin-top:20px;">🎬 曲の構成をつくる</p>
+          <p class="broadcast-desc" style="margin-top:0;">上で選んだコード進行を使って、イントロ→Aメロ→サビ…と展開のある1曲分にまとめて自動生成します（メロディも一緒に作られます）。</p>
+          <div class="composer-actions" id="songStructurePicker"></div>
+
           <div class="band-toggle-row" style="margin-top:18px;">
             <button type="button" class="btn btn-primary" id="bandModeToggle">🎸 バンド編成にする（ベース・ドラムを追加）</button>
           </div>
@@ -5021,6 +5025,57 @@
   // ---------- 🎼 コード進行テンプレの適用 ----------
   var STEPS_PER_CHORD = 8; // テンプレの1コードあたりの長さ（1小節相当）
 
+  // ドラム：いくつかパターンのバリエーションを用意し、場面ごとに違うノリを出せるようにする
+  var DRUM_VARIANTS = [
+    // 0: 定番の四つ打ち寄り
+    function(base){
+      drumPattern.kick[base] = true;
+      drumPattern.kick[base + 3] = true;
+      drumPattern.snare[base + 4] = true;
+      for(var h = 0; h < STEPS_PER_CHORD; h += 2){ drumPattern.hihat[base + h] = true; }
+    },
+    // 1: ハイハットを8分でびっしり、スネアにゴーストを追加（盛り上がる場面向け）
+    function(base){
+      drumPattern.kick[base] = true;
+      drumPattern.kick[base + 2] = true;
+      drumPattern.snare[base + 4] = true;
+      if(Math.random() < 0.5) drumPattern.snare[base + 6] = true;
+      for(var h = 0; h < STEPS_PER_CHORD; h++){ drumPattern.hihat[base + h] = true; }
+    },
+    // 2: シンコペーション気味
+    function(base){
+      drumPattern.kick[base] = true;
+      drumPattern.kick[base + 5] = true;
+      drumPattern.snare[base + 4] = true;
+      for(var h = 1; h < STEPS_PER_CHORD; h += 2){ drumPattern.hihat[base + h] = true; }
+      if(Math.random() < 0.4 && activeDrumParts.indexOf('ohihat') === -1){ activeDrumParts.push('ohihat'); }
+      if(activeDrumParts.indexOf('ohihat') !== -1) drumPattern.ohihat[base + 7] = true;
+    }
+  ];
+
+  // ---------- 🎬 曲の構成（イントロ・Aメロ・サビなど） ----------
+  var SECTION_SPECS = {
+    intro:     { label: 'イントロ', bars: 2, melodyDensity: 0.15, drums: false },
+    verse:     { label: 'Aメロ',   bars: 4, melodyDensity: 0.45, drums: true },
+    prechorus: { label: 'Bメロ',   bars: 2, melodyDensity: 0.6,  drums: true },
+    chorus:    { label: 'サビ',    bars: 4, melodyDensity: 0.78, drums: true, octaveBoost: true, crashStart: true },
+    outro:     { label: 'アウトロ', bars: 2, melodyDensity: 0.2,  drums: false }
+  };
+  var SONG_STRUCTURES = [
+    { id: 'simple',   label: 'シンプル', sections: ['intro', 'chorus', 'outro'] },
+    { id: 'standard', label: '王道',     sections: ['intro', 'verse', 'chorus', 'verse', 'chorus', 'outro'] },
+    { id: 'buildup',  label: '盛り上げ', sections: ['intro', 'verse', 'prechorus', 'chorus', 'chorus', 'outro'] }
+  ];
+  function structureSectionLabels(structure){
+    return structure.sections.map(function(s){ return SECTION_SPECS[s].label; }).join('→');
+  }
+  // 選べる長さ（10/30/60/180秒）の中から、自然な長さ以上の一番近いものを選ぶ
+  function pickDurationOption(naturalSeconds){
+    var options = [10, 30, 60, 180];
+    for(var i = 0; i < options.length; i++){ if(options[i] >= naturalSeconds) return String(options[i]); }
+    return '180';
+  }
+
   function renderAppliedTemplateStatus(){
     var el = document.getElementById('chordTemplateStatus');
     if(!appliedTemplateLabel){
@@ -5044,6 +5099,7 @@
     });
   }
 
+  var selectedChordTemplateId = CHORD_PROGRESSIONS[0].id; // 曲の構成ボタンが使う「今選ばれているコード進行」
   function renderChordTemplatePicker(){
     var picker = document.getElementById('chordTemplatePicker');
     picker.innerHTML = CHORD_PROGRESSIONS.map(function(tpl){
@@ -5056,11 +5112,123 @@
     picker.querySelectorAll('[data-template]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var tpl = CHORD_PROGRESSIONS.filter(function(t){ return t.id === btn.getAttribute('data-template'); })[0];
-        if(tpl) applyChordTemplate(tpl);
+        if(tpl){ selectedChordTemplateId = tpl.id; applyChordTemplate(tpl); }
       });
     });
   }
   renderChordTemplatePicker();
+
+  function renderSongStructurePicker(){
+    var picker = document.getElementById('songStructurePicker');
+    if(!picker) return;
+    picker.innerHTML = SONG_STRUCTURES.map(function(st){
+      return '<button type="button" class="btn" data-structure="' + st.id + '">🎬 ' + escapeHtml(st.label) + '：' + escapeHtml(structureSectionLabels(st)) + '</button>';
+    }).join('');
+    picker.querySelectorAll('[data-structure]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var tpl = CHORD_PROGRESSIONS.filter(function(t){ return t.id === selectedChordTemplateId; })[0] || CHORD_PROGRESSIONS[0];
+        buildStructuredSong(tpl, btn.getAttribute('data-structure'), 0, {});
+        showToast('🎬 「' + structureSectionLabels(SONG_STRUCTURES.filter(function(s){return s.id===btn.getAttribute('data-structure');})[0]) + '」の構成で1曲分作りました。', 'success');
+      });
+    });
+  }
+  renderSongStructurePicker();
+
+  // コード進行 ＋ 曲の構成（イントロ→Aメロ→サビ…）から、メロディ・コード・ベース・ドラムを
+  // まとめて1曲分に組み立てる（applyChordTemplateの発展版：短いループではなく展開のある1曲になる）
+  function buildStructuredSong(tpl, structureId, transposeSemitones, opts){
+    var structure = SONG_STRUCTURES.filter(function(s){ return s.id === structureId; })[0];
+    if(!structure) return null;
+    transposeSemitones = transposeSemitones || 0;
+    opts = opts || {};
+    var transposeMul = Math.pow(2, transposeSemitones / 12);
+    var verseVariant = opts.verseVariant != null ? opts.verseVariant : 0;
+    var chorusVariant = opts.chorusVariant != null ? opts.chorusVariant : 1;
+
+    var newChordSeq = [];
+    var newBassSeq = [];
+    var newMelody = [];
+    var barPlan = []; // 各小節ごとのドラム情報（あとでまとめて敷き詰める）
+    var chordCursor = 0;
+
+    structure.sections.forEach(function(sectionId){
+      var spec = SECTION_SPECS[sectionId];
+      if(!spec) return;
+      var sectionDrumVariant = (sectionId === 'chorus' || sectionId === 'prechorus') ? chorusVariant : verseVariant;
+      for(var b = 0; b < spec.bars; b++){
+        var c = tpl.chords[chordCursor % tpl.chords.length];
+        chordCursor++;
+
+        var chordFreqsArr = chordFreqs(c.root, c.type, 4).map(function(f){ return f * transposeMul; });
+        var chordLbl = chordLabel(c.root, c.type);
+        for(var i = 0; i < STEPS_PER_CHORD; i++){
+          if(i === 0 || i === 4){ newChordSeq.push({ freq: chordFreqsArr, label: chordLbl }); }
+          else { newChordSeq.push({ freq: 0, label: '♪―' }); }
+        }
+
+        var rootFreq = freqFromMidi(midiForNote(c.root, 2)) * transposeMul;
+        for(var i = 0; i < STEPS_PER_CHORD; i++){
+          if(i === 0 || i === 4){ newBassSeq.push({ freq: rootFreq, label: c.root }); }
+          else { newBassSeq.push({ freq: 0, label: '♪―' }); }
+        }
+
+        var melodyOctave = spec.octaveBoost ? 6 : 5;
+        var tones = chordFreqs(c.root, c.type, melodyOctave).map(function(f){ return f * transposeMul; });
+        var passing = freqFromMidi(midiForNote(c.root, melodyOctave) + 2) * transposeMul;
+        var toneChoices = tones.concat([passing]);
+        for(var i = 0; i < STEPS_PER_CHORD; i++){
+          var place = Math.random() < spec.melodyDensity;
+          if(place){
+            var tone = toneChoices[Math.floor(Math.random() * toneChoices.length)];
+            newMelody.push({ freq: tone, label: '♪' });
+          } else {
+            newMelody.push({ freq: 0, label: '♪―' });
+          }
+        }
+
+        barPlan.push({ drums: spec.drums, drumVariant: sectionDrumVariant, crashStart: !!(spec.crashStart && b === 0) });
+      }
+    });
+
+    var totalSteps = newChordSeq.length;
+
+    activeDrumParts = ['kick', 'snare', 'hihat'];
+    DRUM_STEP_COUNT = totalSteps;
+    ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
+    barPlan.forEach(function(bar, idx){
+      if(!bar.drums) return;
+      DRUM_VARIANTS[bar.drumVariant](idx * STEPS_PER_CHORD);
+      if(bar.crashStart){
+        if(activeDrumParts.indexOf('crash') === -1) activeDrumParts.push('crash');
+        drumPattern.crash[idx * STEPS_PER_CHORD] = true;
+      }
+    });
+
+    chordSequence = newChordSeq;
+    bassSequence = newBassSeq;
+    composerSequence = newMelody;
+
+    var stepTime = parseFloat(document.getElementById('composerTempo').value) || 0.32;
+    var naturalSeconds = totalSteps * stepTime;
+    document.getElementById('composerDuration').value = pickDurationOption(naturalSeconds);
+
+    appliedTemplateLabel = tpl.label + '（' + tpl.desc + '）' + (transposeSemitones ? '　キー' + (transposeSemitones > 0 ? '+' : '') + transposeSemitones : '') +
+      '　｜　🎬' + structure.label + '：' + structureSectionLabels(structure) + '（約' + Math.round(naturalSeconds) + '秒/1周）';
+
+    bandModeEnabled = true;
+    document.getElementById('bandModeSection').style.display = '';
+    var toggleBtn = document.getElementById('bandModeToggle');
+    toggleBtn.textContent = '🎸 バンド編成をやめる（メロディだけに戻す）';
+    toggleBtn.classList.remove('btn-primary');
+
+    renderNoteSeq();
+    renderBassSeq();
+    renderDrumPartPicker();
+    renderDrumGrid();
+    renderAppliedTemplateStatus();
+
+    return { totalSteps: totalSteps, naturalSeconds: naturalSeconds };
+  }
 
   // コード進行から、コードレーン・ベースレーン・簡単なドラムパターンをまとめて作る
   function applyChordTemplate(tpl, transposeSemitones, drumVariant){
@@ -5089,33 +5257,7 @@
       }
     });
 
-    // ドラム：いくつかパターンのバリエーションを用意し、毎回少し違うノリにする
-    var DRUM_VARIANTS = [
-      // 0: 定番の四つ打ち寄り
-      function(base){
-        drumPattern.kick[base] = true;
-        drumPattern.kick[base + 3] = true;
-        drumPattern.snare[base + 4] = true;
-        for(var h = 0; h < STEPS_PER_CHORD; h += 2){ drumPattern.hihat[base + h] = true; }
-      },
-      // 1: ハイハットを8分でびっしり、スネアにゴーストを追加
-      function(base){
-        drumPattern.kick[base] = true;
-        drumPattern.kick[base + 2] = true;
-        drumPattern.snare[base + 4] = true;
-        if(Math.random() < 0.5) drumPattern.snare[base + 6] = true;
-        for(var h = 0; h < STEPS_PER_CHORD; h++){ drumPattern.hihat[base + h] = true; }
-      },
-      // 2: シンコペーション気味
-      function(base){
-        drumPattern.kick[base] = true;
-        drumPattern.kick[base + 5] = true;
-        drumPattern.snare[base + 4] = true;
-        for(var h = 1; h < STEPS_PER_CHORD; h += 2){ drumPattern.hihat[base + h] = true; }
-        if(Math.random() < 0.4 && activeDrumParts.indexOf('ohihat') === -1){ activeDrumParts.push('ohihat'); }
-        if(activeDrumParts.indexOf('ohihat') !== -1) drumPattern.ohihat[base + 7] = true;
-      }
-    ];
+    // ドラム：モジュールスコープの DRUM_VARIANTS を使い、パターンを敷き詰める
     var variantIndex = (drumVariant != null) ? drumVariant : Math.floor(Math.random() * DRUM_VARIANTS.length);
     activeDrumParts = ['kick', 'snare', 'hihat'];
     DRUM_STEP_COUNT = totalSteps;
@@ -5258,9 +5400,11 @@
       var waveform = pickRandom(preset.waveforms);
       var tempo = pickRandom(preset.tempos);
       var transposeSemitones = pickRandom([-5, -3, -2, 0, 2, 3, 5]);
-      var drumVariant = Math.floor(Math.random() * 3);
-      var key = [templateId, waveform, tempo, transposeSemitones, drumVariant].join('|');
-      combo = { templateId: templateId, waveform: waveform, tempo: tempo, transposeSemitones: transposeSemitones, drumVariant: drumVariant, key: key };
+      var structureId = pickRandom(SONG_STRUCTURES.map(function(s){ return s.id; }));
+      var verseVariant = pickRandom([0, 2]);
+      var chorusVariant = pickRandom([1, 2]);
+      var key = [templateId, waveform, tempo, transposeSemitones, structureId, verseVariant, chorusVariant].join('|');
+      combo = { templateId: templateId, waveform: waveform, tempo: tempo, transposeSemitones: transposeSemitones, structureId: structureId, verseVariant: verseVariant, chorusVariant: chorusVariant, key: key };
       if(key !== lastAutoComboKey) break;
     }
     lastAutoComboKey = combo.key;
@@ -5273,47 +5417,23 @@
     var tpl = CHORD_PROGRESSIONS.filter(function(t){ return t.id === params.templateId; })[0];
     if(!tpl) return;
 
-    var waveform = params.waveform;
-    var tempo = params.tempo;
-    var transposeSemitones = params.transposeSemitones;
-    var drumVariant = params.drumVariant;
-
-    document.getElementById('composerTempo').value = tempo;
-    currentWaveform = waveform;
+    document.getElementById('composerTempo').value = params.tempo;
+    currentWaveform = params.waveform;
     document.querySelectorAll('#wavePicker .wave-btn').forEach(function(b){
-      b.classList.toggle('active', b.getAttribute('data-wave') === waveform);
+      b.classList.toggle('active', b.getAttribute('data-wave') === params.waveform);
+    });
+    selectedChordTemplateId = tpl.id;
+
+    // コード・ベース・ドラム・メロディを「曲の構成」つきでまとめて自動生成
+    var result = buildStructuredSong(tpl, params.structureId, params.transposeSemitones, {
+      verseVariant: params.verseVariant,
+      chorusVariant: params.chorusVariant
     });
 
-    // コード・ベース・ドラムをテンプレから組み立て（転調・ドラムバリエーションつき）
-    applyChordTemplate(tpl, transposeSemitones, drumVariant);
-
-    // メロディをコードの構成音＋経過音からランダムに自動生成（押すたびに違う旋律になるよう、毎ステップ独立で判定）
-    var transposeMul = Math.pow(2, transposeSemitones / 12);
-    var newMelody = [];
-    tpl.chords.forEach(function(c){
-      var baseTones = chordFreqs(c.root, c.type, 5).map(function(f){ return f * transposeMul; }); // メロディはコード伴奏より1オクターブ上
-      // 経過音として、ルートの全音上（9th相当）も候補に混ぜておくと単調になりにくい
-      var passing = freqFromMidi(midiForNote(c.root, 5) + 2) * transposeMul;
-      var tones = baseTones.concat([passing]);
-      for(var i = 0; i < STEPS_PER_CHORD; i++){
-        var place = Math.random() < preset.density;
-        if(place){
-          var idx = Math.floor(Math.random() * tones.length);
-          var tone = tones[idx];
-          // たまに1オクターブ上下に跳ねさせて、表情をつける
-          if(Math.random() < 0.12) tone *= 2;
-          else if(Math.random() < 0.1) tone *= 0.5;
-          newMelody.push({ freq: tone, label: '♪' });
-        } else {
-          newMelody.push({ freq: 0, label: '♪―' });
-        }
-      }
-    });
-    composerSequence = newMelody;
-    renderNoteSeq();
     composerTitleInput.value = generateSongTitleFresh(autoMood);
 
-    showToast('🎲 「' + tpl.label + '」ベースでおまかせ作曲しました（キー' + (transposeSemitones >= 0 ? '+' : '') + transposeSemitones + '）。気に入らなければ何度でも作り直せます。', 'success');
+    var structure = SONG_STRUCTURES.filter(function(s){ return s.id === params.structureId; })[0];
+    showToast('🎲 「' + tpl.label + '」×「' + structure.label + '（' + structureSectionLabels(structure) + '）」でおまかせ作曲しました（キー' + (params.transposeSemitones >= 0 ? '+' : '') + params.transposeSemitones + '）。気に入らなければ何度でも作り直せます。', 'success');
   });
 
   // 今の入力内容から、再生・ダウンロード・投稿で共通して使う「lanes」を組み立てます
