@@ -1045,6 +1045,29 @@
     .weekly-deadline{ margin-left:0; }
   }
 
+  /* --- 🔰 はじめての方向けウェルカムガイド --- */
+  .welcome-overlay{
+    position:fixed; inset:0; z-index:120; display:flex; align-items:center; justify-content:center;
+    background:rgba(6,8,12,0.82); backdrop-filter:blur(6px); padding:20px;
+  }
+  .welcome-card{
+    width:min(520px, 100%); max-height:88vh; overflow-y:auto;
+    background:var(--panel); border:1px solid rgba(61,255,160,0.3); border-radius:18px;
+    padding:28px 26px; box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(61,255,160,0.08);
+    animation:welcomeIn .45s cubic-bezier(.2,.8,.25,1);
+  }
+  @keyframes welcomeIn{ from{ opacity:0; transform:translateY(24px) scale(0.97); } to{ opacity:1; transform:none; } }
+  .welcome-eyebrow{ font-family:var(--font-mono); font-size:0.7rem; letter-spacing:0.14em; color:var(--green); }
+  .welcome-title{ font-size:1.5rem; margin:10px 0 8px; }
+  .welcome-lead{ font-size:0.88rem; color:var(--muted); }
+  .welcome-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 22px; }
+  .welcome-step{ display:flex; gap:13px; align-items:flex-start; }
+  .welcome-step-icon{ font-size:1.5rem; flex-shrink:0; margin-top:2px; }
+  .welcome-step b{ font-size:0.95rem; }
+  .welcome-step p{ font-size:0.8rem; color:var(--muted); margin-top:3px; line-height:1.65; }
+  .welcome-start{ width:100%; min-height:48px; font-size:1rem; }
+  @media (prefers-reduced-motion: reduce){ .welcome-card{ animation:none; } }
+
   /* --- 6. 「動きを減らす」設定を尊重 --- */
   @media (prefers-reduced-motion: reduce){
     .aurora, .logo-mark .z3, .hero .eyebrow::before{ animation:none; }
@@ -1105,6 +1128,7 @@
       <div class="hero-cta">
         <a href="#tuner" class="btn btn-primary">周波数を探す ↓</a>
         <a href="#wall" class="btn">リスナーの声を読む</a>
+        <button type="button" class="btn" id="openWelcomeBtn">🔰 使い方</button>
       </div>
     </div>
     <svg class="moon-follow" id="moonFollow" viewBox="0 0 24 24" fill="none">
@@ -1884,6 +1908,29 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
+<div class="welcome-overlay" id="welcomeOverlay" style="display:none;">
+  <div class="welcome-card">
+    <p class="welcome-eyebrow">📻 WELCOME TO zzZ FM</p>
+    <h2 class="welcome-title">眠れない夜へ、ようこそ。</h2>
+    <p class="welcome-lead">ここは、眠れない夜にだけつながる架空のラジオ局。3つのことができます。</p>
+    <div class="welcome-steps">
+      <div class="welcome-step">
+        <span class="welcome-step-icon">📻</span>
+        <div><b>聴く</b><p>ダイヤルを回して今夜の周波数を探したり、みんなが作った曲をライブラリで再生できます。ログイン不要。</p></div>
+      </div>
+      <div class="welcome-step">
+        <span class="welcome-step-icon">🎼</span>
+        <div><b>つくる</b><p>音符をタップするだけで作曲。「🎲おまかせ作曲」なら、雰囲気を選んでワンタップで1曲できあがります。</p></div>
+      </div>
+      <div class="welcome-step">
+        <span class="welcome-step-icon">📤</span>
+        <div><b>シェアする</b><p>作った曲はライブラリに投稿してみんなに聴いてもらえます。毎週の🏆お題で腕試しも。</p></div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary welcome-start" id="welcomeCloseBtn">はじめる 🌙</button>
+  </div>
+</div>
+
 <div class="confirm-overlay" id="confirmOverlay" style="display:none;">
   <div class="confirm-box">
     <p id="confirmMessage"></p>
@@ -2309,6 +2356,25 @@
       entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('reveal-in'); io.unobserve(e.target); } });
     }, { threshold: 0.08 });
     targets.forEach(function(t){ io.observe(t); });
+  })();
+
+  // 🔰 はじめての方向けウェルカムガイド（初回訪問時に自動表示、ヒーローの「使い方」からいつでも再表示）
+  (function(){
+    var overlay = document.getElementById('welcomeOverlay');
+    var closeBtn = document.getElementById('welcomeCloseBtn');
+    var openBtn = document.getElementById('openWelcomeBtn');
+    if(!overlay || !closeBtn) return;
+    function openWelcome(){ overlay.style.display = 'flex'; }
+    function closeWelcome(){
+      overlay.style.display = 'none';
+      try { localStorage.setItem('zzzfm_welcomed', '1'); } catch(e){}
+    }
+    closeBtn.addEventListener('click', closeWelcome);
+    overlay.addEventListener('click', function(e){ if(e.target === overlay) closeWelcome(); });
+    if(openBtn) openBtn.addEventListener('click', openWelcome);
+    var seen = null;
+    try { seen = localStorage.getItem('zzzfm_welcomed'); } catch(e){}
+    if(!seen){ setTimeout(openWelcome, 900); } // ページの雰囲気が見えてから、そっと出す
   })();
 </script>
 
@@ -3260,6 +3326,20 @@
         { type: 'bass', waveform: 'square', volume: 0.75, notes: [110.00, null, 110.00, null, 110.00, null, 110.00, null, 87.31, null, 87.31, null, 87.31, null, 87.31, null, 65.41, null, 65.41, null, 65.41, null, 65.41, null, 98.00, null, 98.00, null, 98.00, null, 98.00, null, 110.00, null, 110.00, null, 110.00, null, 110.00, null, 87.31, null, 87.31, null, 87.31, null, 87.31, null, 65.41, null, 65.41, null, 65.41, null, 65.41, null, 98.00, null, 98.00, null, 98.00, null, 98.00, null] },
         { type: 'drums', volume: 0.9, notes: [['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null, ['kick','hihat'], null, ['hihat'], null, ['kick','snare','hihat'], null, ['hihat'], null] }
       ]
+    },
+    t5: {
+      title: 'ねむりの底から',
+      artist: '三日月レイ feat. うたごえ',
+      cover: 'c2',
+      stepTime: 0.4,
+      durationSeconds: 60,
+      effects: { reverb: 0.45, delay: 0.15 },
+      lanes: [
+        { type: 'melody', waveform: 'vocal_a', octaveShift: 0, notes: [659.26, null, 587.33, 523.25, 493.88, null, 440.00, null, 523.25, null, 440.00, null, 523.25, 587.33, 659.26, null, 659.26, null, 587.33, null, 523.25, null, 392.00, null, 493.88, 523.25, 587.33, null, 493.88, null, 440.00, null] },
+        { type: 'chord', waveform: 'piano', volume: 0.4, notes: [[220.00, 261.63, 329.63], null, null, null, [220.00, 261.63, 329.63], null, null, null, [174.61, 220.00, 261.63], null, null, null, [174.61, 220.00, 261.63], null, null, null, [261.63, 329.63, 392.00], null, null, null, [261.63, 329.63, 392.00], null, null, null, [196.00, 246.94, 293.66], null, null, null, [196.00, 246.94, 293.66], null, null, null] },
+        { type: 'bass', waveform: 'sine', volume: 0.8, notes: [110.00, null, null, null, 110.00, null, null, null, 87.31, null, null, null, 87.31, null, null, null, 65.41, null, null, null, 65.41, null, null, null, 98.00, null, null, null, 98.00, null, null, null] },
+        { type: 'drums', volume: 0.55, notes: [['kick'], null, ['hihat'], null, ['rim'], null, ['hihat'], null, ['kick'], null, ['hihat'], null, ['rim'], null, ['hihat'], null, ['kick'], null, ['hihat'], null, ['rim'], null, ['hihat'], null, ['kick'], null, ['hihat'], null, ['rim'], null, ['hihat'], ['hihat']] }
+      ]
     }
   };
   var COVER_CLASSES = ['c1', 'c2', 'c3', 'c4'];
@@ -3463,6 +3543,60 @@
 
   // ---------- 🎤 ボイス（ボカロ風シンセ：本物の録音ではなく、フォルマント・フィルターで「声っぽさ」を作ります） ----------
   // 母音ごとのおおよそのフォルマント周波数（F1・F2・F3）。人の声道の共鳴を簡易的に再現します。
+  // ---------- 🎹 追加シンセ音色（サンプル不要・その場で倍音を重ねて合成） ----------
+  var SYNTH_PRESETS = {
+    epiano:   { label: '🎹 エレピ' },
+    musicbox: { label: '🎐 オルゴール' },
+    pad:      { label: '🌫 パッド' }
+  };
+  function isSynthWaveform(waveform){ return !!SYNTH_PRESETS[waveform]; }
+  function playSynthNote(ctx, destination, waveform, freq, startTime, duration, levelScale){
+    var out = ctx.createGain();
+    out.gain.value = 0.5 * (levelScale || 1);
+    out.connect(destination);
+    var firstOsc = null;
+    function partial(type, f, gainVal, attack, decay, detune){
+      var o = ctx.createOscillator(); o.type = type; o.frequency.value = f;
+      if(detune){ try { o.detune.value = detune; } catch(e) {} }
+      var g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, startTime);
+      g.gain.exponentialRampToValueAtTime(gainVal, startTime + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, startTime + decay);
+      o.connect(g).connect(out);
+      o.start(startTime); o.stop(startTime + decay + 0.05);
+      if(!firstOsc) firstOsc = o;
+    }
+    if(waveform === 'epiano'){
+      // エレピ：基音＋2・3倍音を、ベルっぽく速めに減衰させる
+      partial('sine', freq,        0.9,  0.008, Math.min(duration * 1.6, 1.2));
+      partial('sine', freq * 2,    0.28, 0.006, Math.min(duration * 0.9, 0.5));
+      partial('sine', freq * 3.01, 0.12, 0.005, Math.min(duration * 0.5, 0.28));
+    } else if(waveform === 'musicbox'){
+      // オルゴール：1オクターブ上＋キラキラした高次倍音を、ごく速く減衰させる
+      partial('sine', freq * 2,    0.85, 0.004, Math.min(duration * 1.8, 1.4));
+      partial('sine', freq * 6,    0.18, 0.003, 0.18);
+      partial('sine', freq * 8.06, 0.1,  0.003, 0.12);
+    } else {
+      // パッド：わずかにピッチをずらした鋸波2本＋ローパスで、ふわっと広がる持続音
+      var lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = Math.min(2400, freq * 4); lp.Q.value = 0.8;
+      lp.connect(out);
+      [-8, 8].forEach(function(det){
+        var o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
+        try { o.detune.value = det; } catch(e) {}
+        var g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, startTime);
+        g.gain.linearRampToValueAtTime(0.4, startTime + Math.min(duration * 0.5, 0.25));
+        g.gain.setValueAtTime(0.4, startTime + duration * 0.8);
+        g.gain.linearRampToValueAtTime(0.0001, startTime + duration + 0.1);
+        o.connect(g).connect(lp);
+        o.start(startTime); o.stop(startTime + duration + 0.15);
+        if(!firstOsc) firstOsc = o;
+      });
+    }
+    return { source: firstOsc, gain: out };
+  }
+
   var VOCAL_FORMANTS = {
     vocal_a: { formants: [700, 1220, 2600], label: '🎤 ボイス(あ)' },
     vocal_i: { formants: [270, 2290, 3010], label: '🎤 ボイス(い)' },
@@ -3784,6 +3918,11 @@
             if(isSample){
               var node = playSampleNote(ctx, masterBus, waveform, freq, noteTime, levelScale);
               if(node) activeNodes.push(node);
+              return;
+            }
+            if(isSynthWaveform(waveform)){
+              var snode = playSynthNote(ctx, masterBus, waveform, freq, noteTime, stepTime, levelScale);
+              if(snode) activeNodes.push(snode);
               return;
             }
             var o = ctx.createOscillator(); o.type = waveform || 'sine'; o.frequency.value = freq;
