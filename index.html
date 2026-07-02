@@ -1119,6 +1119,59 @@
   .dj-text{ font-size:0.9rem; margin-top:4px; line-height:1.7; min-height:1.5em; }
   @media (prefers-reduced-motion: reduce){ .dj-card{ animation:none; } .radio-onair{ animation:none; } }
 
+  /* --- 🌙 ナイトプレイヤー（全画面没入モード） --- */
+  .night-player{
+    position:fixed; inset:0; z-index:150; background:#05070b; cursor:pointer;
+    animation:nightIn .5s ease;
+  }
+  @keyframes nightIn{ from{ opacity:0; } to{ opacity:1; } }
+  .night-player canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  .night-content{
+    position:absolute; left:0; right:0; top:16%; text-align:center; padding:0 24px;
+    pointer-events:none;
+  }
+  .night-clock{
+    font-family:var(--font-mono); font-size:3.4rem; color:rgba(237,234,226,0.9);
+    letter-spacing:0.06em; text-shadow:0 0 30px rgba(61,255,160,0.25);
+  }
+  .night-onair{
+    font-family:var(--font-mono); font-size:0.72rem; color:var(--pink); margin-top:14px;
+    letter-spacing:0.15em; animation:onairPulse 2.4s ease-in-out infinite;
+  }
+  .night-title{
+    font-size:1.7rem; margin-top:26px; color:var(--text);
+    text-shadow:0 0 24px rgba(61,255,160,0.3);
+  }
+  .night-artist{ font-size:0.95rem; color:var(--muted); margin-top:8px; }
+  .night-dj{
+    font-size:0.95rem; color:var(--gold); margin-top:26px; min-height:1.6em; line-height:1.8;
+    padding:0 12px;
+  }
+  .night-hint{
+    position:absolute; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); left:0; right:0;
+    text-align:center; font-size:0.72rem; color:var(--muted-2); pointer-events:none;
+  }
+  @media (prefers-reduced-motion: reduce){ .night-player{ animation:none; } .night-onair{ animation:none; } }
+
+  /* --- 📡 起動チューニング演出 --- */
+  .boot-overlay{
+    position:fixed; inset:0; z-index:200; background:#05070b;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    cursor:pointer; transition:opacity .5s ease;
+  }
+  .boot-overlay.boot-out{ opacity:0; pointer-events:none; }
+  .boot-label{ font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); letter-spacing:0.3em; }
+  .boot-freq{
+    font-family:var(--font-mono); font-size:4.6rem; font-weight:700; color:var(--green);
+    text-shadow:0 0 30px rgba(61,255,160,0.4); letter-spacing:0.04em;
+  }
+  .boot-noise{ display:flex; gap:5px; height:26px; align-items:flex-end; }
+  .boot-noise i{ display:block; width:7px; background:rgba(61,255,160,0.55); border-radius:2px; }
+  .boot-station{
+    font-family:var(--font-mono); font-size:0.86rem; color:var(--gold); letter-spacing:0.12em;
+    transition:opacity .4s ease; margin-top:6px;
+  }
+
   /* --- 6. 「動きを減らす」設定を尊重 --- */
   @media (prefers-reduced-motion: reduce){
     .aurora, .logo-mark .z3, .hero .eyebrow::before{ animation:none; }
@@ -1134,6 +1187,12 @@
 <body>
 <div class="aurora"></div>
 <div class="grain"></div>
+<div class="boot-overlay" id="bootOverlay" style="display:none;">
+  <p class="boot-label">TUNING…</p>
+  <p class="boot-freq" id="bootFreq">87.5</p>
+  <div class="boot-noise" id="bootNoise"></div>
+  <p class="boot-station" id="bootStation" style="opacity:0;">zzZ FM ─ 眠れない夜の周波数</p>
+</div>
 <div class="scanlines"></div>
 
 <header class="nav">
@@ -1977,9 +2036,22 @@
       <p class="radio-track-title" id="radioTrackTitle">—</p>
       <p class="radio-track-artist" id="radioTrackArtist"></p>
     </div>
+    <button class="radio-bar-btn" id="radioNightBtn" type="button" aria-label="ナイトプレイヤー(全画面)">🌙</button>
     <button class="radio-bar-btn" id="radioSkipBtn" type="button" aria-label="次の曲へ">⏭</button>
     <button class="radio-bar-btn" id="radioStopBtn" type="button" aria-label="ラジオを止める">⏹</button>
   </div>
+</div>
+
+<div class="night-player" id="nightPlayer" style="display:none;">
+  <canvas id="nightViz"></canvas>
+  <div class="night-content">
+    <p class="night-clock" id="nightClock"></p>
+    <p class="night-onair">● ON AIR — zzZ FM 眠れない夜の周波数</p>
+    <h2 class="night-title" id="nightTitle">—</h2>
+    <p class="night-artist" id="nightArtist"></p>
+    <p class="night-dj" id="nightDj"></p>
+  </div>
+  <p class="night-hint">画面をタップで戻る</p>
 </div>
 
 <div class="welcome-overlay" id="welcomeOverlay" style="display:none;">
@@ -2430,6 +2502,55 @@
       entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('reveal-in'); io.unobserve(e.target); } });
     }, { threshold: 0.08 });
     targets.forEach(function(t){ io.observe(t); });
+  })();
+
+  // 📡 起動チューニング演出（セッション初回のみ・タップでスキップ可・動きを減らす設定では出さない）
+  (function(){
+    var overlay = document.getElementById('bootOverlay');
+    if(!overlay) return;
+    var reduced = false;
+    try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+    var seen = null;
+    try { seen = sessionStorage.getItem('zzzfm_booted'); } catch(e){}
+    if(seen || reduced) return;
+    try { sessionStorage.setItem('zzzfm_booted', '1'); } catch(e){}
+
+    overlay.style.display = 'flex';
+    var freqEl = document.getElementById('bootFreq');
+    var stationEl = document.getElementById('bootStation');
+    var noiseEl = document.getElementById('bootNoise');
+    // ノイズバー
+    for(var i = 0; i < 18; i++){
+      var bar = document.createElement('i');
+      noiseEl.appendChild(bar);
+    }
+    var bars = noiseEl.children;
+    var start = Date.now();
+    var DURATION = 1500;
+    var done = false;
+    var timer = setInterval(function(){
+      var p = Math.min(1, (Date.now() - start) / DURATION);
+      // 周波数: ランダムに揺れながら76.0へ収束
+      var jitter = (1 - p) * (Math.random() * 20 - 10);
+      var f = 76.0 + (1 - p) * 11.5 + jitter * (1 - p);
+      freqEl.textContent = Math.max(76, Math.min(108, f)).toFixed(1);
+      for(var i = 0; i < bars.length; i++){
+        bars[i].style.height = (3 + Math.random() * 23 * (1 - p * 0.7)) + 'px';
+      }
+      if(p >= 1 && !done){
+        done = true;
+        clearInterval(timer);
+        freqEl.textContent = '76.0';
+        stationEl.style.opacity = '1';
+        setTimeout(dismiss, 700);
+      }
+    }, 50);
+    function dismiss(){
+      clearInterval(timer);
+      overlay.classList.add('boot-out');
+      setTimeout(function(){ overlay.style.display = 'none'; }, 550);
+    }
+    overlay.addEventListener('click', dismiss);
   })();
 
   // 📲 スマホアプリ化(PWA): 2回目以降の高速表示とオフライン再生のために登録
@@ -5631,10 +5752,13 @@
     playRadioJingle();
     var i = 0;
     clearInterval(djTypeTimer);
+    var nightDjEl = document.getElementById('nightDj');
+    if(nightDjEl) nightDjEl.textContent = '';
     djTypeTimer = setInterval(function(){
       if(!radioModeActive){ clearInterval(djTypeTimer); return; }
       i++;
       textEl.textContent = line.slice(0, i);
+      if(nightDjEl) nightDjEl.textContent = '🌙 ' + line.slice(0, i);
       if(i >= line.length) clearInterval(djTypeTimer);
     }, 45);
     clearTimeout(radioDjTimer);
@@ -5650,6 +5774,10 @@
     var artistEl = document.getElementById('radioTrackArtist');
     if(titleEl) titleEl.textContent = entry.t.title || '無題';
     if(artistEl) artistEl.textContent = entry.t.artist || '名無し';
+    var nTitle = document.getElementById('nightTitle');
+    var nArtist = document.getElementById('nightArtist');
+    if(nTitle) nTitle.textContent = entry.t.title || '無題';
+    if(nArtist) nArtist.textContent = entry.t.artist || '名無し';
   }
 
   function radioPlayNext(){
@@ -5685,6 +5813,7 @@
     clearInterval(djTypeTimer);
     document.getElementById('radioBar').style.display = 'none';
     document.getElementById('djCard').style.display = 'none';
+    closeNightPlayer();
     var btn = document.getElementById('radioModeBtn');
     if(btn){ btn.textContent = '📻 流しっぱなしで聴く（ラジオモード）'; btn.classList.add('btn-primary'); }
     stopMelody();
@@ -5703,6 +5832,66 @@
     refreshPlayingUI();
     radioPlayNext();
   });
+
+  // ---------- 🌙 ナイトプレイヤー（全画面没入モード） ----------
+  // ラジオモードを「寝る前に置いておける画面」にする。実音のFFTで巨大ビジュアライザーが踊り、時計とDJトークが浮かぶ
+  var nightPlayerOpen = false;
+  var nightRaf = null;
+  var nightClockTimer = null;
+  function drawNightViz(){
+    if(!nightPlayerOpen) return;
+    var canvas = document.getElementById('nightViz');
+    var ctx2d = null;
+    try { ctx2d = canvas.getContext && canvas.getContext('2d'); } catch(e){}
+    if(ctx2d && visualAnalyser){
+      if(canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight){
+        canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+      }
+      var W2 = canvas.width, H2 = canvas.height;
+      ctx2d.clearRect(0, 0, W2, H2);
+      var data = new Uint8Array(visualAnalyser.frequencyBinCount);
+      visualAnalyser.getByteFrequencyData(data);
+      var bars = 24;
+      var bw = W2 / bars;
+      var colors = ['#3dffa0', '#ffb23e', '#ff3d7f', '#9678ff'];
+      for(var i = 0; i < bars; i++){
+        var v = data[Math.floor(i * data.length / bars)] / 255;
+        var h = 8 + v * H2 * 0.42;
+        ctx2d.fillStyle = colors[i % 4];
+        ctx2d.globalAlpha = 0.85;
+        var x = i * bw;
+        ctx2d.fillRect(x + bw*0.15, H2 - h, bw*0.7, h);
+        // 天井からの鏡像（淡く）
+        ctx2d.globalAlpha = 0.14;
+        ctx2d.fillRect(x + bw*0.15, 0, bw*0.7, h * 0.5);
+      }
+      ctx2d.globalAlpha = 1;
+    }
+    nightRaf = requestAnimationFrame(drawNightViz);
+  }
+  function updateNightClock(){
+    var el = document.getElementById('nightClock');
+    if(!el) return;
+    var d = new Date();
+    el.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  function openNightPlayer(){
+    nightPlayerOpen = true;
+    document.getElementById('nightPlayer').style.display = 'block';
+    document.getElementById('nightTitle').textContent = document.getElementById('radioTrackTitle').textContent;
+    document.getElementById('nightArtist').textContent = document.getElementById('radioTrackArtist').textContent;
+    updateNightClock();
+    nightClockTimer = setInterval(updateNightClock, 10000);
+    drawNightViz();
+  }
+  function closeNightPlayer(){
+    nightPlayerOpen = false;
+    if(nightRaf){ cancelAnimationFrame(nightRaf); nightRaf = null; }
+    clearInterval(nightClockTimer);
+    document.getElementById('nightPlayer').style.display = 'none';
+  }
+  document.getElementById('radioNightBtn').addEventListener('click', openNightPlayer);
+  document.getElementById('nightPlayer').addEventListener('click', closeNightPlayer);
 
   // ---------- 🏆 今週のお題＆週間ランキング ----------
   // お題は週番号から自動で決まる（管理の手間ゼロで毎週月曜0時に切り替わる）
