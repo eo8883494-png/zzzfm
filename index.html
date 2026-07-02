@@ -1374,6 +1374,9 @@
             <button type="button" class="wave-btn" data-wave="piano">🎹 ピアノ</button>
             <button type="button" class="wave-btn" data-wave="trumpet">🎺 トランペット</button>
             <button type="button" class="wave-btn" data-wave="violin">🎻 バイオリン</button>
+            <button type="button" class="wave-btn" data-wave="musicbox">🎐 オルゴール</button>
+            <button type="button" class="wave-btn" data-wave="epiano">🎹 エレピ</button>
+            <button type="button" class="wave-btn" data-wave="flute">🪈 フルート</button>
             <button type="button" class="wave-btn" data-wave="vocal_a">🎤 ボイス(あ)</button>
             <button type="button" class="wave-btn" data-wave="vocal_i">🎤 ボイス(い)</button>
             <button type="button" class="wave-btn" data-wave="vocal_u">🎤 ボイス(う)</button>
@@ -2693,6 +2696,31 @@
     }
   }
 
+  // ---------- 📅 ログインボーナス（毎晩のチェックイン・連続記録） ----------
+  // その日はじめてログイン状態でサイトに来たら、ポイントを進呈。連続日数が続くほどボーナス増量（最大+6）
+  var dailyCheckinDone = false; // 1セッション1回だけ
+  function localDayKey(offsetDays){
+    var d = new Date();
+    if(offsetDays) d.setDate(d.getDate() + offsetDays);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function maybeDailyCheckin(uid){
+    if(dailyCheckinDone) return;
+    dailyCheckinDone = true;
+    get(ref(db, 'profiles/' + uid)).then(function(snap){
+      var prof = (snap && snap.val && snap.val()) || {};
+      var today = localDayKey(0);
+      if(prof.lastCheckin === today) return; // 今日はもう受け取り済み
+      var streak = (prof.lastCheckin === localDayKey(-1)) ? (prof.streak || 0) + 1 : 1;
+      var bonus = 5 + Math.min(streak - 1, 6);
+      set(ref(db, 'profiles/' + uid + '/lastCheckin'), today);
+      set(ref(db, 'profiles/' + uid + '/streak'), streak);
+      awardPoints(uid, bonus);
+      var streakText = streak >= 2 ? '（🔥連続' + streak + '日目！）' : '';
+      showToast('🌙 今夜もようこそ。ログインボーナス +' + bonus + 'pt ' + streakText, 'success');
+    }).catch(function(){ dailyCheckinDone = false; });
+  }
+
   onAuthStateChanged(auth, function(user){
     var justLoggedIn = !currentUser && user;
     currentUser = user;
@@ -2710,6 +2738,7 @@
       } catch(e2) {}
     }
     if(justLoggedIn) handleReferral(user.uid);
+    if(user) setTimeout(function(){ maybeDailyCheckin(user.uid); }, 1200); // 画面が落ち着いてからそっと出す
   });
 
   var ICE_SERVERS = { iceServers: [
@@ -3505,9 +3534,12 @@
   // 楽器ごとの音源ファイルと基準ピッチの一覧。ここに追加すれば新しい楽器が増やせます。
   var SAMPLE_INSTRUMENTS = {
     acoustic: { url: GUITAR_SAMPLE_URL, baseFreq: GUITAR_BASE_FREQ, label: '🎸 アコギ' },
-    piano:    { url: 'note-piano.mp3',   baseFreq: 263.24, label: '🎹 ピアノ' },
-    trumpet:  { url: 'note-trumpet.mp3', baseFreq: 345.34, label: '🎺 トランペット' },
-    violin:   { url: 'note-violin.mp3',  baseFreq: 372.27, label: '🎻 バイオリン' }
+    piano:    { url: 'note-piano.mp3',    baseFreq: 263.24, label: '🎹 ピアノ' },
+    trumpet:  { url: 'note-trumpet.mp3',  baseFreq: 345.34, label: '🎺 トランペット' },
+    violin:   { url: 'note-violin.mp3',   baseFreq: 372.27, label: '🎻 バイオリン' },
+    musicbox: { url: 'note-musicbox.mp3', baseFreq: 523.25, label: '🎐 オルゴール' },
+    epiano:   { url: 'note-epiano.mp3',   baseFreq: 261.63, label: '🎹 エレピ' },
+    flute:    { url: 'note-flute.mp3',    baseFreq: 440.00, label: '🪈 フルート' }
   };
   function isSampleWaveform(waveform){ return !!SAMPLE_INSTRUMENTS[waveform]; }
 
@@ -6260,10 +6292,10 @@
   var autoMood = 'chill';
   // それぞれの雰囲気で「合いそうな候補」を複数用意し、押すたびにランダムに選ぶことで毎回違う仕上がりにします
   var MOOD_PRESETS = {
-    chill:     { templateIds: ['jazzy', 'sad'],          waveforms: ['triangle', 'sine', 'piano', 'violin', 'vocal_a'],  tempos: ['0.32', '0.45'], density: 0.5 },
-    pop:       { templateIds: ['circle', 'canon'],       waveforms: ['square', 'triangle', 'piano', 'acoustic'],         tempos: ['0.2', '0.32'],  density: 0.65 },
-    sad:       { templateIds: ['sad', 'jazzy'],          waveforms: ['sine', 'triangle', 'violin', 'piano', 'vocal_a'],  tempos: ['0.45', '0.32'], density: 0.4 },
-    energetic: { templateIds: ['komuro', 'circle'],      waveforms: ['sawtooth', 'square', 'trumpet', 'acoustic'],       tempos: ['0.12', '0.2'],  density: 0.75 }
+    chill:     { templateIds: ['jazzy', 'sad'],          waveforms: ['triangle', 'sine', 'piano', 'violin', 'vocal_a', 'epiano', 'flute'],  tempos: ['0.32', '0.45'], density: 0.5 },
+    pop:       { templateIds: ['circle', 'canon'],       waveforms: ['square', 'triangle', 'piano', 'acoustic', 'epiano'],                  tempos: ['0.2', '0.32'],  density: 0.65 },
+    sad:       { templateIds: ['sad', 'jazzy'],          waveforms: ['sine', 'triangle', 'violin', 'piano', 'vocal_a', 'musicbox'],         tempos: ['0.45', '0.32'], density: 0.4 },
+    energetic: { templateIds: ['komuro', 'circle'],      waveforms: ['sawtooth', 'square', 'trumpet', 'acoustic', 'epiano'],                tempos: ['0.12', '0.2'],  density: 0.75 }
   };
   function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -6361,7 +6393,7 @@
   // 直前と全く同じ「テンプレ・転調・テンポ・音色・ドラム」を連続で引いてしまうと
   // 曲が変わったように聞こえないため、前回と完全一致した場合は必ず引き直します
   var lastAutoComboKey = null;
-  var BASS_WAVEFORM_POOL = ['sine', 'triangle', 'square', 'acoustic', 'piano'];
+  var BASS_WAVEFORM_POOL = ['sine', 'triangle', 'square', 'acoustic', 'piano', 'epiano'];
   function rollAutoComposeParams(preset){
     var combo;
     for(var attempt = 0; attempt < 12; attempt++){
