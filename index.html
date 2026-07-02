@@ -11,7 +11,7 @@
 <meta property="og:url" content="https://eo8883494-png.github.io/">
 <meta property="og:image" content="https://eo8883494-png.github.io/og-image.png">
 <meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="400">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="zzZ FM（zzzfm） | 眠れない夜の周波数">
 <meta name="twitter:description" content="眠れない夜にだけつながる、みんなで作る架空のラジオ局。">
@@ -208,6 +208,13 @@
     position:absolute; top:calc(100% + 8px); right:0; z-index:65; width:300px; max-height:380px; overflow-y:auto;
     background:var(--panel); border:1px solid var(--line-strong); border-radius:12px; padding:8px;
     box-shadow:0 16px 40px rgba(0,0,0,0.5);
+  }
+  @media (max-width: 720px){
+    /* スマホではベルの位置基準だと画面外にはみ出すため、画面幅に合わせて固定表示する */
+    .notif-panel{
+      position:fixed; top:calc(var(--header-h, 64px) + 8px); left:12px; right:12px;
+      width:auto; max-height:60vh; z-index:80;
+    }
   }
   .notif-item{
     display:block; width:100%; text-align:left; padding:10px 12px; border-radius:8px; cursor:pointer;
@@ -997,6 +1004,47 @@
     50%{ box-shadow:0 0 0 4px rgba(61,255,160,0.7), 0 0 60px rgba(61,255,160,0.35); }
   }
 
+  /* --- 🏆 今週のお題＆週間ランキング --- */
+  .weekly-corner{
+    margin:14px 0 18px; padding:16px 18px; border-radius:14px;
+    background:linear-gradient(135deg, rgba(255,217,122,0.07), rgba(255,178,62,0.03) 60%, transparent);
+    border:1px solid rgba(255,217,122,0.28);
+  }
+  .weekly-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .weekly-theme-text{ font-weight:700; font-size:1.02rem; color:var(--gold); }
+  .weekly-deadline{
+    font-family:var(--font-mono); font-size:0.68rem; color:var(--amber);
+    border:1px solid rgba(255,178,62,0.4); border-radius:12px; padding:2px 9px; margin-left:auto;
+  }
+  .weekly-desc{ font-size:0.82rem; color:var(--muted); margin-top:7px; }
+  .weekly-ranking{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+  .weekly-rank-row{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    padding:9px 12px; border-radius:9px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); transition:border-color .15s, transform .15s;
+  }
+  .weekly-rank-row:hover{ border-color:rgba(255,217,122,0.45); transform:translateX(3px); }
+  .wr-medal{ font-size:1.05rem; }
+  .wr-title{ font-weight:700; font-size:0.88rem; }
+  .wr-artist{ font-size:0.74rem; color:var(--muted); }
+  .wr-likes{ margin-left:auto; font-family:var(--font-mono); font-size:0.76rem; color:var(--pink); }
+  .weekly-empty{ font-size:0.8rem; color:var(--muted); padding:8px 2px; }
+
+  /* --- 📱 スマホでの作曲UI最適化 --- */
+  @media (max-width: 720px){
+    .note-btn{ min-width:46px; min-height:46px; font-size:0.9rem; }
+    .wave-btn, .drum-part-btn, .mood-tag-btn{ min-height:42px; }
+    .composer-actions .btn, .band-toggle-row .btn{ min-height:46px; }
+    .wave-picker, .composer-actions#songStructurePicker{
+      overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;
+      padding-bottom:6px; scrollbar-width:thin;
+    }
+    .wave-picker .wave-btn{ flex:0 0 auto; }
+    #songStructurePicker .btn{ flex:0 0 auto; white-space:nowrap; }
+    .mixer-label{ width:96px; font-size:0.7rem; }
+    .weekly-deadline{ margin-left:0; }
+  }
+
   /* --- 6. 「動きを減らす」設定を尊重 --- */
   @media (prefers-reduced-motion: reduce){
     .aurora, .logo-mark .z3, .hero .eyebrow::before{ animation:none; }
@@ -1228,6 +1276,16 @@
         <div class="daily-theme-banner" id="dailyThemeBanner">
           <span class="snippet-eyebrow">🎯 今日のテーマ</span>
           <span class="daily-theme-text" id="dailyThemeText"></span>
+        </div>
+
+        <div class="weekly-corner" id="weeklyCorner">
+          <div class="weekly-head">
+            <span class="snippet-eyebrow">🏆 今週のお題</span>
+            <span class="weekly-theme-text" id="weeklyThemeText"></span>
+            <span class="weekly-deadline" id="weeklyDeadline"></span>
+          </div>
+          <p class="weekly-desc" id="weeklyDesc"></p>
+          <div class="weekly-ranking" id="weeklyRanking"></div>
         </div>
         <div class="composer-step">
           <div class="composer-step-head">
@@ -3239,13 +3297,31 @@
   // 途中に AnalyserNode が挟んであるので、実際に鳴っている音の周波数データを取り出して描画できます。
   var visualAnalyser = null;
   var visualOutNode = null;
+  // ---------- 🔊 簡易マスタリング（最終段のコンプレッサー） ----------
+  // すべての音を最後にまとめて軽く圧縮することで、パート同士の音量差がならされ、
+  // 全体に「一枚の曲」としてのまとまりと音圧が出ます（市販曲の仕上げ工程の簡易版です）
+  function buildMasterChain(ctx, destination){
+    var comp = ctx.createDynamicsCompressor();
+    try {
+      comp.threshold.value = -18;
+      comp.knee.value = 24;
+      comp.ratio.value = 3.5;
+      comp.attack.value = 0.006;
+      comp.release.value = 0.22;
+    } catch(e) {}
+    var makeup = ctx.createGain();
+    makeup.gain.value = 1.18; // 圧縮で下がったぶんを持ち上げる
+    comp.connect(makeup).connect(destination);
+    return comp;
+  }
+
   function getVisualOut(ctx){
     if(ctx.constructor && String(ctx.constructor).indexOf('Offline') !== -1) return ctx.destination; // 書き出し時は不要
     if(!visualOutNode || visualOutNode.__ctx !== ctx){
       visualAnalyser = ctx.createAnalyser();
       visualAnalyser.fftSize = 64; // 32本の周波数バーが取れる粗さで十分（軽さ優先）
       visualAnalyser.smoothingTimeConstant = 0.75;
-      visualAnalyser.connect(ctx.destination);
+      visualAnalyser.connect(buildMasterChain(ctx, ctx.destination)); // アナライザー→マスター(コンプ)→出力
       visualOutNode = visualAnalyser;
       visualOutNode.__ctx = ctx;
     }
@@ -3841,7 +3917,7 @@
     var length = Math.max(1, Math.ceil(durationSeconds * sampleRate));
     var offlineCtx = new OfflineAudioContext(1, length, sampleRate);
     stepTime = stepTime || 0.32;
-    var masterBus = buildEffectChain(offlineCtx, offlineCtx.destination, effects, durationSeconds);
+    var masterBus = buildEffectChain(offlineCtx, buildMasterChain(offlineCtx, offlineCtx.destination), effects, durationSeconds);
 
     function doRender(){
       lanes.forEach(function(lane){
@@ -4220,6 +4296,7 @@
     communityTracks = snap.val() || {};
     dataLoadFlags.tracks = true;
     refreshLeaderboards();
+    if(typeof renderWeeklyCorner === 'function') renderWeeklyCorner();
   });
 
   // ---------- 🏆 今夜の人気アーティスト & 🌟 常連リスナー ----------
@@ -4516,6 +4593,7 @@
   onValue(ref(db, 'wall/likes'), function(snap){
     allLikes = snap.val() || {};
     refreshLeaderboards();
+    if(typeof renderWeeklyCorner === 'function') renderWeeklyCorner();
   });
 
   onValue(ref(db, 'broadcastLog'), function(snap){
@@ -5236,6 +5314,71 @@
     });
   }
   renderLibraryTagFilter();
+
+  // ---------- 🏆 今週のお題＆週間ランキング ----------
+  // お題は週番号から自動で決まる（管理の手間ゼロで毎週月曜0時に切り替わる）
+  var WEEKLY_THEMES = [
+    { title: '眠れない夜のテーマソング', desc: '午前2時、目が冴えてしまったあなたのための1曲。' },
+    { title: '雨の日の帰り道', desc: '傘に当たる雨音と一緒に聴きたいメロディを。' },
+    { title: '宇宙ステーションの朝', desc: '無重力で迎える夜明けはどんな音がする？' },
+    { title: '猫が夢の中で聴いている曲', desc: '丸くなって眠る猫の頭の中のBGMを想像して。' },
+    { title: '夏の終わりの観覧車', desc: '少しさみしくて、少しあたたかい曲を。' },
+    { title: '深夜のコンビニ', desc: '青白い光と自動ドアの音に似合う1曲。' },
+    { title: '始発電車の窓から', desc: '眠らなかった夜の終わり、白んでいく空の曲。' },
+    { title: '海底2万マイルの子守唄', desc: '深い深い水の底で聴くゆりかごの歌。' },
+    { title: '8bitの夢', desc: 'スクエア波多めで、レトロゲームの夜を。' },
+    { title: '屋上で聴く街の音', desc: '遠くのサイレン、風、看板のノイズと一緒に。' },
+    { title: '魔法使いの夜勤', desc: '真夜中に働く魔法使いの作業用BGM。' },
+    { title: '雪の降る周波数', desc: '音のない雪の夜に、そっと流れるメロディ。' }
+  ];
+  function weekInfo(){
+    var now = new Date();
+    var day = (now.getDay() + 6) % 7; // 月曜=0
+    var monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+    var weekStart = monday.getTime();
+    return { start: weekStart, num: Math.floor(weekStart / (7 * 86400000)) };
+  }
+  function renderWeeklyCorner(){
+    var rankEl = document.getElementById('weeklyRanking');
+    var themeEl = document.getElementById('weeklyThemeText');
+    var descEl = document.getElementById('weeklyDesc');
+    var dlEl = document.getElementById('weeklyDeadline');
+    if(!rankEl || !themeEl) return;
+    var wi = weekInfo();
+    var theme = WEEKLY_THEMES[wi.num % WEEKLY_THEMES.length];
+    themeEl.textContent = '「' + theme.title + '」';
+    if(descEl) descEl.textContent = theme.desc + '　今週いちばん♥を集めた曲が週間チャンピオンです。';
+    if(dlEl){
+      var daysLeft = Math.max(0, Math.ceil((wi.start + 7 * 86400000 - Date.now()) / 86400000));
+      dlEl.textContent = 'あと' + daysLeft + '日';
+    }
+    var ids = Object.keys(communityTracks).filter(function(id){
+      return (communityTracks[id].createdAt || 0) >= wi.start;
+    });
+    ids.sort(function(a, b){ return (allLikes[b] || 0) - (allLikes[a] || 0); });
+    var top3 = ids.slice(0, 3);
+    if(top3.length === 0){
+      rankEl.innerHTML = '<p class="weekly-empty">今週の投稿はまだありません。一番乗りでお題に挑戦しよう！</p>';
+      return;
+    }
+    var medals = ['🥇', '🥈', '🥉'];
+    rankEl.innerHTML = top3.map(function(id, i){
+      var t = communityTracks[id];
+      return '<button type="button" class="weekly-rank-row" data-goto-track="' + id + '">' +
+        '<span class="wr-medal">' + medals[i] + '</span>' +
+        '<span class="wr-title">' + escapeHtml(t.title || '') + '</span>' +
+        '<span class="wr-artist">' + escapeHtml(t.artist || '名無し') + '</span>' +
+        '<span class="wr-likes">♥' + (allLikes[id] || 0) + '</span>' +
+      '</button>';
+    }).join('');
+    rankEl.querySelectorAll('[data-goto-track]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        location.hash = 'track=' + encodeURIComponent(btn.getAttribute('data-goto-track'));
+        handleTrackDeepLink();
+      });
+    });
+  }
+  renderWeeklyCorner();
 
   // ---------- 🔗 曲への直リンク（#track=曲ID で開くと、その曲までスクロールして光らせる） ----------
   function handleTrackDeepLink(){
