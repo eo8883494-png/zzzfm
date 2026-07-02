@@ -2140,6 +2140,24 @@
     }, 3400);
   }
 
+  // スクリプトの読み込み・実行エラーを画面に表示する（スマホでも原因が確認できるように。最初の1件だけ）
+  var __errorToastShown = false;
+  window.addEventListener('error', function(e){
+    if(__errorToastShown) return;
+    var msg = (e && e.message) ? e.message : '';
+    if(!msg && e && e.target && e.target.src){ msg = '読み込み失敗: ' + e.target.src; }
+    if(!msg) return;
+    __errorToastShown = true;
+    showToast('⚠️ ページのスクリプトでエラーが発生しています：' + String(msg).slice(0, 120), 'error');
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    if(__errorToastShown) return;
+    var msg = e && e.reason ? (e.reason.message || String(e.reason)) : '';
+    if(!msg) return;
+    __errorToastShown = true;
+    showToast('⚠️ 処理エラー：' + String(msg).slice(0, 120), 'error');
+  });
+
   function showConfirm(message){
     return new Promise(function(resolve){
       var overlay = document.getElementById('confirmOverlay');
@@ -2299,30 +2317,28 @@
     var ua = navigator.userAgent || '';
     return /Line\/|FBAN|FBAV|Instagram|Twitter|MicroMessenger/i.test(ua);
   }
-  function isMobileDevice(){
-    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-  }
   function startGoogleLogin(){
     if(isInAppBrowser()){
       showToast('このアプリ内のブラウザではGoogleログインがブロックされます。右上の「…」などから「ブラウザで開く」を選んでから、もう一度お試しください。', 'error');
       return;
     }
-    if(isMobileDevice()){
-      // スマホではポップアップが開けない・すぐ閉じることが多いため、最初からリダイレクト方式（Googleのページへ移動→戻ってくる）を使います
-      signInWithRedirect(auth, googleProvider).catch(function(err){
-        showToast('ログインに失敗しました：' + (err && err.message ? err.message : err), 'error');
-      });
-      return;
-    }
+    // 押した瞬間に必ず反応を出す（もしこの表示すら出ない場合は、スクリプト自体が読み込めていないサイン）
+    showToast('Googleログインを開いています…');
+    // iPhoneのSafariなどでは、リダイレクト方式はブラウザのトラッキング防止機能に
+    // 静かにブロックされてしまうため、全端末で「ポップアップ方式」を第一に使います（Firebase公式の推奨）
     signInWithPopup(auth, googleProvider).catch(function(err){
       var code = err && err.code;
       if(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request'){
         return; // 自分でポップアップを閉じただけなので、何もしない
       }
-      // それ以外は理由を問わず、リダイレクト方式でリトライ（ポップアップブロック等の環境でも確実にログインできるように）
-      signInWithRedirect(auth, googleProvider).catch(function(err2){
-        showToast('ログインに失敗しました：' + (err2 && err2.message ? err2.message : err2), 'error');
-      });
+      if(code === 'auth/popup-blocked'){
+        showToast('ポップアップがブロックされました。リダイレクト方式で再試行します…');
+        signInWithRedirect(auth, googleProvider).catch(function(err2){
+          showToast('ログインに失敗しました：' + (err2 && err2.message ? err2.message : err2), 'error');
+        });
+        return;
+      }
+      showToast('ログインに失敗しました：' + (code ? code + ' / ' : '') + (err && err.message ? err.message : err), 'error');
     });
   }
   getRedirectResult(auth).catch(function(err){
