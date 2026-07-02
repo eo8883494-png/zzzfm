@@ -982,6 +982,21 @@
   .reveal{ opacity:0; transform:translateY(26px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
   .reveal.reveal-in{ opacity:1; transform:none; }
 
+  /* --- 🔁 リミックス表示・曲リンクのハイライト --- */
+  .remix-origin{
+    font-family:var(--font-mono); font-size:0.68rem; color:var(--amber);
+    margin-top:5px; opacity:0.85;
+  }
+  .track-card.deeplink-hit{
+    border-color:var(--green);
+    box-shadow:0 0 0 2px rgba(61,255,160,0.45), 0 0 44px rgba(61,255,160,0.2);
+    animation:deeplinkPulse 1.4s ease-in-out 2;
+  }
+  @keyframes deeplinkPulse{
+    0%,100%{ box-shadow:0 0 0 2px rgba(61,255,160,0.45), 0 0 44px rgba(61,255,160,0.2); }
+    50%{ box-shadow:0 0 0 4px rgba(61,255,160,0.7), 0 0 60px rgba(61,255,160,0.35); }
+  }
+
   /* --- 6. 「動きを減らす」設定を尊重 --- */
   @media (prefers-reduced-motion: reduce){
     .aurora, .logo-mark .z3, .hero .eyebrow::before{ animation:none; }
@@ -2645,11 +2660,12 @@
       showToast('🎉 招待ボーナスで' + REFERRAL_BONUS + 'pt もらいました！', 'success');
     }).catch(function(){});
   }
-  function shareContent(text){
+  function shareContent(text, url){
+    var shareUrl = url || SITE_URL;
     if(navigator.share){
-      navigator.share({ title: 'zzZ FM', text: text, url: SITE_URL }).catch(function(){});
+      navigator.share({ title: 'zzZ FM', text: text, url: shareUrl }).catch(function(){});
     } else {
-      window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(SITE_URL), '_blank', 'noopener');
+      window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(shareUrl), '_blank', 'noopener');
     }
   }
 
@@ -3974,11 +3990,13 @@
               : '') +
           '</p>' +
           (t.tags && t.tags.length ? '<div class="track-tags">' + t.tags.map(function(tg){ return '<span class="track-tag-chip">' + moodLabel(tg) + '</span>'; }).join('') + '</div>' : '') +
+          (t.remixOf && t.remixOf.title ? '<p class="remix-origin">🔁 「' + escapeHtml(t.remixOf.title) + '」（' + escapeHtml(t.remixOf.artist || '名無し') + '）のリミックス</p>' : '') +
         '</div>' +
         '<div class="track-foot">' +
           '<button class="play-btn" type="button" aria-label="試聴する">▶</button>' +
           '<span class="track-time" title="' + (t.lanes ? (t.lanes.length + 'パート') : ((t.melody ? t.melody.length : 0) + '音')) + ' / ' + tempoLabel(t.stepTime) + '">' + (t.durationSeconds ? formatDuration(t.durationSeconds) : '') + '</span>' +
           '<button class="dl-btn" type="button" aria-label="ダウンロード">⬇</button>' +
+          '<button class="dl-btn" type="button" aria-label="この曲を元にアレンジ" title="この曲を元にアレンジして投稿" data-remix-track>🔁</button>' +
           '<button class="dl-btn" type="button" aria-label="シェア" data-share-title="' + escapeHtml(t.title) + '" data-share-artist="' + escapeHtml(t.artist || '名無し') + '">🔗</button>' +
           (t.uid ? '<button class="dl-btn" type="button" aria-label="コメント" data-toggle-comments>💬<span class="comment-count-badge" id="commentCount-' + id + '"></span></button>' : '') +
           (!isHouseTrack && currentUser && (isAdmin() || currentUser.uid === t.uid) ?
@@ -4013,7 +4031,13 @@
 
     var shareBtn = cardEl.querySelector('[data-share-title]');
     if(shareBtn) shareBtn.addEventListener('click', function(){
-      shareContent(shareBtn.getAttribute('data-share-title') + '（' + shareBtn.getAttribute('data-share-artist') + ' / zzZ FM）');
+      var text = '🌙「' + shareBtn.getAttribute('data-share-title') + '」 by ' + shareBtn.getAttribute('data-share-artist') + '\n眠れない夜の周波数で聴けます🎧\n#zzZFM #眠れない夜の周波数';
+      shareContent(text, SITE_URL + '#track=' + encodeURIComponent(id));
+    });
+
+    var remixBtn = cardEl.querySelector('[data-remix-track]');
+    if(remixBtn) remixBtn.addEventListener('click', function(){
+      loadTrackIntoComposer(id, t);
     });
 
     var followBtn = cardEl.querySelector('.follow-inline-btn');
@@ -5213,6 +5237,27 @@
   }
   renderLibraryTagFilter();
 
+  // ---------- 🔗 曲への直リンク（#track=曲ID で開くと、その曲までスクロールして光らせる） ----------
+  function handleTrackDeepLink(){
+    var m = (location.hash || '').match(/^#track=(.+)$/);
+    if(!m) return;
+    var targetId = decodeURIComponent(m[1]);
+    var attempts = 0;
+    (function tryFind(){
+      var card = null;
+      try { card = document.querySelector('.track-card[data-track="' + (window.CSS && CSS.escape ? CSS.escape(targetId) : targetId) + '"]'); } catch(e){}
+      if(card){
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.add('deeplink-hit');
+        setTimeout(function(){ card.classList.remove('deeplink-hit'); }, 5000);
+      } else if(attempts++ < 20){
+        setTimeout(tryFind, 400); // 曲データの読み込み待ち
+      }
+    })();
+  }
+  handleTrackDeepLink();
+  window.addEventListener('hashchange', handleTrackDeepLink);
+
   function renderNoteSeq(){
     if(composerSequence.length === 0){
       noteSeqEl.innerHTML = '<span class="note-seq-empty">音符をタップして、メロディーを作ってみましょう（2〜' + MAX_NOTES + '音）</span>';
@@ -5772,14 +5817,22 @@
         var c = tpl.chords[chordCursor % tpl.chords.length];
         chordCursor++;
 
-        // コード伴奏：サビは刻み（0,2,4,6）で勢いを、その他は0,4で落ち着きを
+        // コード伴奏：サビはブロック刻み（0,2,4,6）で厚く、Aメロ等はアルペジオ（分散和音）で繊細に
         var chordFreqsArr = chordFreqs(c.root, c.type, 4).map(function(f){ return f * transposeMul; });
         var chordLbl = chordLabel(c.root, c.type);
-        for(var i = 0; i < STEPS_PER_CHORD; i++){
-          var strum = isChorus ? (i % 2 === 0) : (i === 0 || i === 4);
-          if(strum && spec.melodyDensity > 0.18){ newChordSeq.push({ freq: chordFreqsArr, label: chordLbl }); }
-          else if(i === 0){ newChordSeq.push({ freq: chordFreqsArr, label: chordLbl }); }
-          else { newChordSeq.push({ freq: 0, label: '♪―' }); }
+        if(isChorus || spec.melodyDensity <= 0.18){
+          for(var i = 0; i < STEPS_PER_CHORD; i++){
+            var strum = isChorus ? (i % 2 === 0) : (i === 0);
+            if(strum){ newChordSeq.push({ freq: chordFreqsArr, label: chordLbl }); }
+            else { newChordSeq.push({ freq: 0, label: '♪―' }); }
+          }
+        } else {
+          // アルペジオ：ルート→3度→5度→3度…と8分で音をばらして流れを作る
+          var arpOrder = [0, 1, 2, 1, 0, 2, 1, 2];
+          for(var i = 0; i < STEPS_PER_CHORD; i++){
+            var tone = chordFreqsArr[arpOrder[i] % chordFreqsArr.length];
+            newChordSeq.push({ freq: tone, label: (i === 0 ? chordLbl : '♪') });
+          }
         }
 
         // ベース：サビは8分でルート＋5度を織り交ぜて跳ねさせ、その他はルートをどっしり
@@ -5810,7 +5863,7 @@
         var barNotes = renderMotifBar(motif, tones, passing, contourLift);
         for(var i = 0; i < barNotes.length; i++){ newMelody.push(barNotes[i]); }
 
-        barPlan.push({ drums: spec.drums, drumVariant: sectionDrumVariant, crashStart: !!(spec.crashStart && b === 0) });
+        barPlan.push({ drums: spec.drums, drumVariant: sectionDrumVariant, crashStart: !!(spec.crashStart && b === 0), sectionEnd: (b === spec.bars - 1) });
       }
     });
 
@@ -5825,6 +5878,15 @@
       if(bar.crashStart){
         if(activeDrumParts.indexOf('crash') === -1) activeDrumParts.push('crash');
         drumPattern.crash[idx * STEPS_PER_CHORD] = true;
+      }
+      // セクションの終わり小節はフィルイン（スネア→タム回し）で「次に行くぞ」感を出す
+      if(bar.sectionEnd && idx < barPlan.length - 1){
+        ['tomhigh', 'tommid'].forEach(function(p){ if(activeDrumParts.indexOf(p) === -1) activeDrumParts.push(p); });
+        var base = idx * STEPS_PER_CHORD;
+        drumPattern.hihat[base + 5] = false; drumPattern.hihat[base + 6] = false; drumPattern.hihat[base + 7] = false;
+        drumPattern.snare[base + 5] = true;
+        drumPattern.tomhigh[base + 6] = true;
+        drumPattern.tommid[base + 7] = true;
       }
     });
 
@@ -6097,6 +6159,7 @@
     bassSequence = [];
     chordSequence = [];
     appliedTemplateLabel = '';
+    remixSource = null;
     ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
     document.getElementById('bandModeSection').style.display = 'none';
     var toggleBtn = document.getElementById('bandModeToggle');
@@ -6106,6 +6169,102 @@
     renderDrumGrid();
     renderAppliedTemplateStatus();
     document.getElementById('mixerResetBtn').click();
+  }
+
+  // ---------- 🔁 リミックス：既存の曲を作曲フォームに読み込んでアレンジできる ----------
+  var remixSource = null; // 読み込み中のリミックス元 { id, title, artist }
+  function freqToNoteObj(f){
+    if(!f) return { freq: 0, label: '♪―' };
+    if(Array.isArray(f)) return { freq: f, label: '♪♪' };
+    return { freq: f, label: '♪' };
+  }
+  function setWavePickerActive(pickerId, wave){
+    document.querySelectorAll('#' + pickerId + ' .wave-btn').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-wave') === wave);
+    });
+  }
+  function loadTrackIntoComposer(id, t){
+    stopMelody();
+    refreshPlayingUI();
+    resetBandInputs();
+
+    if(t.stepTime) document.getElementById('composerTempo').value = String(t.stepTime);
+    if(t.durationSeconds) document.getElementById('composerDuration').value = String(t.durationSeconds);
+
+    var hasBandParts = false;
+    if(t.lanes && t.lanes.length){
+      var laneByType = {};
+      t.lanes.forEach(function(l){ if(l && l.type && !laneByType[l.type]) laneByType[l.type] = l; });
+      if(laneByType.melody){
+        currentWaveform = laneByType.melody.waveform || 'sine';
+        setWavePickerActive('wavePicker', currentWaveform);
+        composerSequence = (laneByType.melody.notes || []).map(freqToNoteObj);
+      }
+      if(laneByType.chord){
+        chordSequence = (laneByType.chord.notes || []).map(freqToNoteObj);
+        hasBandParts = true;
+      }
+      if(laneByType.bass){
+        bassSequence = (laneByType.bass.notes || []).map(freqToNoteObj);
+        bassWaveform = laneByType.bass.waveform || 'sine';
+        setWavePickerActive('bassWavePicker', bassWaveform);
+        hasBandParts = true;
+      }
+      if(laneByType.drums){
+        var dnotes = laneByType.drums.notes || [];
+        DRUM_STEP_COUNT = Math.max(16, dnotes.length);
+        ALL_DRUM_PARTS.forEach(function(p){ drumPattern[p[0]] = new Array(DRUM_STEP_COUNT).fill(false); });
+        activeDrumParts = ['kick', 'snare', 'hihat'];
+        dnotes.forEach(function(step, i){
+          if(!step) return;
+          (Array.isArray(step) ? step : [step]).forEach(function(hit){
+            if(drumPattern[hit]){
+              drumPattern[hit][i] = true;
+              if(activeDrumParts.indexOf(hit) === -1) activeDrumParts.push(hit);
+            }
+          });
+        });
+        hasBandParts = true;
+      }
+    } else {
+      currentWaveform = t.waveform || 'sine';
+      setWavePickerActive('wavePicker', currentWaveform);
+      composerSequence = (t.melody || []).map(freqToNoteObj);
+    }
+
+    if(hasBandParts){
+      bandModeEnabled = true;
+      document.getElementById('bandModeSection').style.display = '';
+      var toggleBtn = document.getElementById('bandModeToggle');
+      toggleBtn.textContent = '🎸 バンド編成をやめる（メロディだけに戻す）';
+      toggleBtn.classList.remove('btn-primary');
+    }
+
+    // エフェクト設定も引き継ぐ（スライダーUIにも反映）
+    if(t.effects){
+      [['fxReverb','fxReverbValue','reverb'], ['fxDelay','fxDelayValue','delay'], ['fxChorus','fxChorusValue','chorus'], ['fxDistortion','fxDistortionValue','distortion']].forEach(function(row){
+        var v = Math.round((t.effects[row[2]] || 0) * 100);
+        mixerEffects[row[2]] = v / 100;
+        var slider = document.getElementById(row[0]);
+        var label = document.getElementById(row[1]);
+        if(slider) slider.value = v;
+        if(label) label.textContent = v + '%';
+      });
+    }
+
+    remixSource = { id: id, title: t.title || '', artist: t.artist || '名無し' };
+    composerTitleInput.value = ((t.title || '') + ' (Remix)').slice(0, 30);
+    appliedTemplateLabel = '🔁 リミックス元：「' + (t.title || '') + '」（' + (t.artist || '名無し') + '）';
+
+    renderNoteSeq();
+    renderBassSeq();
+    renderDrumPartPicker();
+    renderDrumGrid();
+    renderAppliedTemplateStatus();
+
+    var titleInput = document.getElementById('composerTitle');
+    if(titleInput && titleInput.scrollIntoView) titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('🔁 「' + (t.title || '') + '」を作曲フォームに読み込みました。自由にアレンジして投稿しましょう！', 'success');
   }
 
   // ---------- ▶ プレビュー再生中、いま鳴っている音符チップを光らせて追いかける ----------
@@ -6166,6 +6325,7 @@
     var effects = buildComposerEffects();
     var trackData = { title: title, artist: artist, uid: currentUser.uid, durationSeconds: duration, stepTime: stepTime, tags: composerSelectedTags.slice(), createdAt: Date.now() };
     if(effects.reverb > 0 || effects.delay > 0 || effects.chorus > 0 || effects.distortion > 0){ trackData.effects = effects; }
+    if(remixSource){ trackData.remixOf = { id: remixSource.id, title: remixSource.title, artist: remixSource.artist }; }
     if(isBand){
       trackData.lanes = lanes;
       trackData.isBand = true;
@@ -6173,9 +6333,15 @@
       trackData.melody = lanes[0].notes;
       trackData.waveform = currentWaveform;
     }
-    push(ref(db, 'tracks'), trackData);
+    var newRef = push(ref(db, 'tracks'), trackData);
     awardPoints(currentUser.uid, SCORE_PER_TRACK);
-    composerNoteText.textContent = isBand ? '投稿しました！バンド編成の曲として下のライブラリに表示されます。' : '投稿しました！下のライブラリに表示されます。';
+    // 投稿完了メッセージ＋そのままXでシェアできる導線
+    var trackUrl = SITE_URL + '#track=' + encodeURIComponent(newRef.key || '');
+    var shareText = '🌙 新曲「' + title + '」を投稿しました！\n眠れない夜の周波数で聴けます🎧\n#zzZFM #眠れない夜の周波数';
+    composerNoteText.innerHTML = escapeHtml(isBand ? '投稿しました！バンド編成の曲として下のライブラリに表示されます。' : '投稿しました！下のライブラリに表示されます。') +
+      ' <button type="button" class="btn" id="shareNewTrackBtn" style="margin-left:6px;">𝕏 でシェアする</button>';
+    var shareNewBtn = document.getElementById('shareNewTrackBtn');
+    if(shareNewBtn) shareNewBtn.addEventListener('click', function(){ shareContent(shareText, trackUrl); });
     composerTitleInput.value = '';
     composerSequence = [];
     composerSelectedTags = [];
