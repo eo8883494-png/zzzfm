@@ -910,6 +910,84 @@
       scroll-behavior:auto !important;
     }
   }
+  /* ================================================================
+     ✨ 深夜のネオン強化パック
+     「深夜のラジオブース」の世界観を、より艶っぽく印象的に
+     ================================================================ */
+
+  /* --- 1. 背景オーロラ：深夜の空をゆっくり流れる光 --- */
+  .aurora{
+    position:fixed; inset:-20%; z-index:1; pointer-events:none;
+    background:
+      radial-gradient(38% 30% at 18% 22%, rgba(61,255,160,0.07), transparent 70%),
+      radial-gradient(34% 28% at 82% 18%, rgba(255,61,127,0.055), transparent 70%),
+      radial-gradient(40% 34% at 62% 84%, rgba(96,90,255,0.065), transparent 70%);
+    filter:blur(42px);
+    animation:auroraDrift 26s ease-in-out infinite alternate;
+  }
+  @keyframes auroraDrift{
+    0%{ transform:translate3d(-2%, -1%, 0) scale(1); }
+    50%{ transform:translate3d(2%, 2%, 0) scale(1.06); }
+    100%{ transform:translate3d(-1%, 1.5%, 0) scale(1.02); }
+  }
+
+  /* --- 2. ヒーロー：ネオンサインのロゴと ON AIR ランプ --- */
+  .logo-mark .z, .logo-mark .fm{
+    text-shadow:0 0 12px rgba(61,255,160,0.32), 0 0 44px rgba(61,255,160,0.16);
+  }
+  .logo-mark .z3{ animation:neonFlicker 7s linear infinite; }
+  @keyframes neonFlicker{
+    0%, 90.9%, 94.6%, 100%{ opacity:1; }
+    91.5%, 92.3%{ opacity:0.35; }
+    93%, 94%{ opacity:0.8; }
+  }
+  .hero .eyebrow::before{
+    content:''; display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--pink); margin-right:9px; vertical-align:1px;
+    box-shadow:0 0 10px rgba(255,61,127,0.9);
+    animation:onairPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes onairPulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+  /* --- 3. カード：ホバーでふわっと浮く＋再生中はネオン縁取り --- */
+  .track-card{ transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+  .track-card:hover{
+    transform:translateY(-5px);
+    border-color:rgba(61,255,160,0.35);
+    box-shadow:0 14px 38px rgba(0,0,0,0.45), 0 0 24px rgba(61,255,160,0.08);
+  }
+  .track-card.playing{
+    border-color:rgba(61,255,160,0.55);
+    box-shadow:0 0 0 1px rgba(61,255,160,0.3), 0 0 34px rgba(61,255,160,0.14);
+  }
+  .composer-step{ transition:border-color .25s ease, box-shadow .25s ease; }
+  .composer-step:hover{ border-color:rgba(237,234,226,0.28); }
+  .highlight-card{ transition:transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+  .highlight-card:hover{ transform:translateY(-3px); border-color:rgba(61,255,160,0.4); box-shadow:0 10px 26px rgba(0,0,0,0.4); }
+
+  /* --- 4. ボタン：夜光グラデーション --- */
+  .btn{ transition:transform .18s ease, box-shadow .25s ease, border-color .2s, color .2s, background .25s; }
+  .btn:active{ transform:translateY(1px) scale(0.98); }
+  .btn-primary{
+    background:linear-gradient(120deg, rgba(61,255,160,0.22), rgba(61,255,160,0.09) 55%, rgba(255,61,127,0.14));
+    border-color:rgba(61,255,160,0.5);
+  }
+  .btn-primary:hover{
+    transform:translateY(-2px);
+    box-shadow:0 6px 24px rgba(61,255,160,0.22);
+    border-color:var(--green);
+  }
+
+  /* --- 5. スクロールでふわっと現れる --- */
+  .reveal{ opacity:0; transform:translateY(26px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.reveal-in{ opacity:1; transform:none; }
+
+  /* --- 6. 「動きを減らす」設定を尊重 --- */
+  @media (prefers-reduced-motion: reduce){
+    .aurora, .logo-mark .z3, .hero .eyebrow::before{ animation:none; }
+    .reveal{ opacity:1; transform:none; transition:none; }
+    .track-card, .btn, .composer-step, .highlight-card{ transition:none; }
+  }
 </style>
 
 <!-- ▼ AdSenseの確認用コード(scriptタグ)が発行されたら、ここに貼り付けます ▼ -->
@@ -917,6 +995,7 @@
 
 </head>
 <body>
+<div class="aurora"></div>
 <div class="grain"></div>
 <div class="scanlines"></div>
 
@@ -2129,6 +2208,17 @@
     requestAnimationFrame(raf);
   }
   raf();
+
+  // ✨ スクロールでふわっと現れる演出
+  (function(){
+    var targets = document.querySelectorAll('section .wrap, .highlights-strip');
+    if(!('IntersectionObserver' in window)){ targets.forEach(function(t){ t.classList.add('reveal-in'); }); return; }
+    targets.forEach(function(t){ t.classList.add('reveal'); });
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('reveal-in'); io.unobserve(e.target); } });
+    }, { threshold: 0.08 });
+    targets.forEach(function(t){ io.observe(t); });
+  })();
 </script>
 
 <script type="module">
@@ -2209,24 +2299,39 @@
     var ua = navigator.userAgent || '';
     return /Line\/|FBAN|FBAV|Instagram|Twitter|MicroMessenger/i.test(ua);
   }
+  function isMobileDevice(){
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  }
   function startGoogleLogin(){
     if(isInAppBrowser()){
       showToast('このアプリ内のブラウザではGoogleログインがブロックされます。右上の「…」などから「ブラウザで開く」を選んでから、もう一度お試しください。', 'error');
       return;
     }
+    if(isMobileDevice()){
+      // スマホではポップアップが開けない・すぐ閉じることが多いため、最初からリダイレクト方式（Googleのページへ移動→戻ってくる）を使います
+      signInWithRedirect(auth, googleProvider).catch(function(err){
+        showToast('ログインに失敗しました：' + (err && err.message ? err.message : err), 'error');
+      });
+      return;
+    }
     signInWithPopup(auth, googleProvider).catch(function(err){
       var code = err && err.code;
-      if(code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request'){
-        // ポップアップがブロックされた場合はリダイレクト方式にフォールバック
-        signInWithRedirect(auth, googleProvider).catch(function(err2){
-          showToast('ログインに失敗しました：' + (err2 && err2.message ? err2.message : err2), 'error');
-        });
-        return;
+      if(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request'){
+        return; // 自分でポップアップを閉じただけなので、何もしない
       }
-      showToast('ログインに失敗しました：' + (err && err.message ? err.message : err), 'error');
+      // それ以外は理由を問わず、リダイレクト方式でリトライ（ポップアップブロック等の環境でも確実にログインできるように）
+      signInWithRedirect(auth, googleProvider).catch(function(err2){
+        showToast('ログインに失敗しました：' + (err2 && err2.message ? err2.message : err2), 'error');
+      });
     });
   }
-  getRedirectResult(auth).catch(function(){ /* リダイレクト未使用時は何も起きないので無視 */ });
+  getRedirectResult(auth).catch(function(err){
+    // リダイレクト方式で戻ってきた時のエラーは、原因がわかるよう表示する（未使用時のno-auth-eventは無視）
+    var code = err && err.code;
+    if(code && code !== 'auth/no-auth-event'){
+      showToast('ログイン処理でエラーが発生しました：' + (err.message || code), 'error');
+    }
+  });
 
   document.getElementById('loginBtn').addEventListener('click', startGoogleLogin);
 
