@@ -1068,6 +1068,57 @@
   .welcome-start{ width:100%; min-height:48px; font-size:1rem; }
   @media (prefers-reduced-motion: reduce){ .welcome-card{ animation:none; } }
 
+  /* --- 📻 流しっぱなしラジオモード --- */
+  .radio-mode-banner{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    margin:16px 0 4px; padding:14px 16px; border-radius:14px;
+    background:linear-gradient(120deg, rgba(61,255,160,0.08), transparent 70%);
+    border:1px solid rgba(61,255,160,0.25);
+  }
+  .radio-mode-banner .btn{ min-height:46px; }
+  .radio-mode-hint{ font-size:0.76rem; color:var(--muted); }
+  .radio-bar{
+    position:fixed; left:0; right:0; bottom:0; z-index:110;
+    padding:0 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    pointer-events:none;
+  }
+  .radio-bar-inner{
+    pointer-events:auto;
+    display:flex; align-items:center; gap:12px;
+    max-width:720px; margin:0 auto; padding:10px 16px;
+    background:rgba(16,20,28,0.94); backdrop-filter:blur(10px);
+    border:1px solid rgba(61,255,160,0.4); border-radius:16px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.6), 0 0 24px rgba(61,255,160,0.1);
+  }
+  .radio-onair{
+    font-family:var(--font-mono); font-size:0.68rem; color:var(--pink); white-space:nowrap;
+    animation:onairPulse 2.2s ease-in-out infinite;
+  }
+  .radio-now{ flex:1; min-width:0; }
+  .radio-track-title{ font-weight:700; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .radio-track-artist{ font-size:0.72rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .radio-bar-btn{
+    width:46px; height:46px; border-radius:12px; flex-shrink:0;
+    background:var(--panel-2); border:1px solid var(--line-strong); color:var(--text);
+    font-size:1.1rem; transition:border-color .15s, transform .12s;
+  }
+  .radio-bar-btn:hover{ border-color:var(--green); }
+  .radio-bar-btn:active{ transform:scale(0.94); }
+  .dj-card{
+    pointer-events:auto;
+    display:flex; gap:12px; align-items:flex-start;
+    max-width:720px; margin:0 auto 10px; padding:14px 16px;
+    background:rgba(20,25,35,0.96); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,217,122,0.4); border-radius:16px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.55);
+    animation:djIn .35s cubic-bezier(.2,.8,.25,1);
+  }
+  @keyframes djIn{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
+  .dj-avatar{ font-size:1.7rem; flex-shrink:0; }
+  .dj-name{ font-family:var(--font-mono); font-size:0.66rem; color:var(--gold); letter-spacing:0.08em; }
+  .dj-text{ font-size:0.9rem; margin-top:4px; line-height:1.7; min-height:1.5em; }
+  @media (prefers-reduced-motion: reduce){ .dj-card{ animation:none; } .radio-onair{ animation:none; } }
+
   /* --- 6. 「動きを減らす」設定を尊重 --- */
   @media (prefers-reduced-motion: reduce){
     .aurora, .logo-mark .z3, .hero .eyebrow::before{ animation:none; }
@@ -1582,6 +1633,10 @@
         </div>
         <p class="library-result-count" id="libraryResultCount"></p>
       </div>
+      <div class="radio-mode-banner">
+        <button class="btn btn-primary" id="radioModeBtn" type="button">📻 流しっぱなしで聴く（ラジオモード）</button>
+        <span class="radio-mode-hint">みんなの曲を、DJ三日月レイの曲紹介つきでシャッフル再生します</span>
+      </div>
       <div class="grid-3" id="trackLibraryGrid" style="margin-top:14px;"></div>
     </div>
   </section>
@@ -1910,6 +1965,22 @@
 </section>
 
 <div class="toast-container" id="toastContainer"></div>
+
+<div class="radio-bar" id="radioBar" style="display:none;">
+  <div class="dj-card" id="djCard" style="display:none;">
+    <span class="dj-avatar">🌙</span>
+    <div class="dj-bubble"><span class="dj-name">三日月レイ</span><p class="dj-text" id="djText"></p></div>
+  </div>
+  <div class="radio-bar-inner">
+    <span class="radio-onair">📻 ON AIR</span>
+    <div class="radio-now">
+      <p class="radio-track-title" id="radioTrackTitle">—</p>
+      <p class="radio-track-artist" id="radioTrackArtist"></p>
+    </div>
+    <button class="radio-bar-btn" id="radioSkipBtn" type="button" aria-label="次の曲へ">⏭</button>
+    <button class="radio-bar-btn" id="radioStopBtn" type="button" aria-label="ラジオを止める">⏹</button>
+  </div>
+</div>
 
 <div class="welcome-overlay" id="welcomeOverlay" style="display:none;">
   <div class="welcome-card">
@@ -2360,6 +2431,13 @@
     }, { threshold: 0.08 });
     targets.forEach(function(t){ io.observe(t); });
   })();
+
+  // 📲 スマホアプリ化(PWA): 2回目以降の高速表示とオフライン再生のために登録
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
 
   // 🔰 はじめての方向けウェルカムガイド（初回訪問時に自動表示、ヒーローの「使い方」からいつでも再表示）
   (function(){
@@ -4014,7 +4092,11 @@
     refreshPlayingUI();
     if(t.durationSeconds){
       melodyStopTimer = setTimeout(function(){
-        if(currentMelodyId === id){ stopMelody(); refreshPlayingUI(); }
+        if(currentMelodyId === id){
+          stopMelody();
+          refreshPlayingUI();
+          if(radioModeActive){ radioPlayNext(); } // 📻 ラジオモード中は自動で次の曲へ
+        }
       }, t.durationSeconds * 1000);
     }
     if(countPlay){
@@ -5485,6 +5567,142 @@
     });
   }
   renderLibraryTagFilter();
+
+  // ---------- 📻 流しっぱなしラジオモード（DJ三日月レイの曲紹介つき） ----------
+  var radioModeActive = false;
+  var radioQueue = [];
+  var radioIndex = 0;
+  var radioDjTimer = null;
+  var djTypeTimer = null;
+  var radioPlayCount = 0;
+
+  var DJ_LINES = [
+    '次の曲は、{artist}さんの「{title}」。',
+    'こんな夜には、この曲を。{artist}さんで「{title}」。',
+    '眠れないあなたへ。「{title}」、{artist}さんの作品です。',
+    '周波数の向こうから届きました。{artist}さんの「{title}」。',
+    'つづいては、{artist}さんの「{title}」をどうぞ。',
+    '夜はまだ長いので、もう1曲。「{title}」、{artist}さんです。',
+    '今夜{n}曲目。{artist}さんの「{title}」。',
+    'そっと音量を上げて。{artist}さんの「{title}」。'
+  ];
+
+  function buildRadioQueue(){
+    var entries = [];
+    Object.keys(HOUSE_TRACKS).forEach(function(id){ entries.push({ id: id, t: HOUSE_TRACKS[id] }); });
+    Object.keys(communityTracks).forEach(function(id){ entries.push({ id: id, t: communityTracks[id] }); });
+    for(var i = entries.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = entries[i]; entries[i] = entries[j]; entries[j] = tmp;
+    }
+    return entries;
+  }
+
+  // 曲間に鳴る、短いラジオジングル（2音のスティング）
+  function playRadioJingle(){
+    try {
+      var ctx = ensureMelodyCtx();
+      [[783.99, 0], [1046.5, 0.14]].forEach(function(pair){
+        var osc = ctx.createOscillator();
+        var g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = pair[0];
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + pair[1]);
+        g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + pair[1] + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + pair[1] + 0.5);
+        osc.connect(g).connect(ctx.destination);
+        osc.start(ctx.currentTime + pair[1]);
+        osc.stop(ctx.currentTime + pair[1] + 0.55);
+      });
+    } catch(e) {}
+  }
+
+  function showDjIntro(entry, done){
+    var card = document.getElementById('djCard');
+    var textEl = document.getElementById('djText');
+    if(!card || !textEl){ done(); return; }
+    radioPlayCount++;
+    var line = pickRandom(DJ_LINES)
+      .replace('{artist}', entry.t.artist || '名無し')
+      .replace('{title}', entry.t.title || '無題')
+      .replace('{n}', String(radioPlayCount));
+    card.style.display = 'flex';
+    textEl.textContent = '';
+    playRadioJingle();
+    var i = 0;
+    clearInterval(djTypeTimer);
+    djTypeTimer = setInterval(function(){
+      if(!radioModeActive){ clearInterval(djTypeTimer); return; }
+      i++;
+      textEl.textContent = line.slice(0, i);
+      if(i >= line.length) clearInterval(djTypeTimer);
+    }, 45);
+    clearTimeout(radioDjTimer);
+    radioDjTimer = setTimeout(function(){
+      if(!radioModeActive) return;
+      card.style.display = 'none';
+      done();
+    }, Math.max(2600, line.length * 45 + 900));
+  }
+
+  function updateRadioBar(entry){
+    var titleEl = document.getElementById('radioTrackTitle');
+    var artistEl = document.getElementById('radioTrackArtist');
+    if(titleEl) titleEl.textContent = entry.t.title || '無題';
+    if(artistEl) artistEl.textContent = entry.t.artist || '名無し';
+  }
+
+  function radioPlayNext(){
+    if(!radioModeActive) return;
+    if(radioIndex >= radioQueue.length){
+      radioQueue = buildRadioQueue();
+      radioIndex = 0;
+    }
+    var entry = radioQueue[radioIndex++];
+    if(!entry) return;
+    updateRadioBar(entry);
+    showDjIntro(entry, function(){
+      if(!radioModeActive) return;
+      playTrack(entry.id, entry.t, true);
+    });
+  }
+
+  function startRadioMode(){
+    if(radioModeActive) return;
+    radioModeActive = true;
+    radioPlayCount = 0;
+    radioQueue = buildRadioQueue();
+    radioIndex = 0;
+    document.getElementById('radioBar').style.display = 'block';
+    var btn = document.getElementById('radioModeBtn');
+    if(btn){ btn.textContent = '⏹ ラジオモードを止める'; btn.classList.remove('btn-primary'); }
+    showToast('📻 ラジオモード開始。眠くなるまで、ごゆっくり。');
+    radioPlayNext();
+  }
+  function stopRadioMode(){
+    radioModeActive = false;
+    clearTimeout(radioDjTimer);
+    clearInterval(djTypeTimer);
+    document.getElementById('radioBar').style.display = 'none';
+    document.getElementById('djCard').style.display = 'none';
+    var btn = document.getElementById('radioModeBtn');
+    if(btn){ btn.textContent = '📻 流しっぱなしで聴く（ラジオモード）'; btn.classList.add('btn-primary'); }
+    stopMelody();
+    refreshPlayingUI();
+  }
+  document.getElementById('radioModeBtn').addEventListener('click', function(){
+    if(radioModeActive) stopRadioMode(); else startRadioMode();
+  });
+  document.getElementById('radioStopBtn').addEventListener('click', stopRadioMode);
+  document.getElementById('radioSkipBtn').addEventListener('click', function(){
+    if(!radioModeActive) return;
+    clearTimeout(radioDjTimer);
+    clearInterval(djTypeTimer);
+    document.getElementById('djCard').style.display = 'none';
+    stopMelody();
+    refreshPlayingUI();
+    radioPlayNext();
+  });
 
   // ---------- 🏆 今週のお題＆週間ランキング ----------
   // お題は週番号から自動で決まる（管理の手間ゼロで毎週月曜0時に切り替わる）
