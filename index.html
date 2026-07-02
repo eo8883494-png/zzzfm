@@ -1353,7 +1353,7 @@
         <div class="broadcast-control">
           <p class="snippet-eyebrow">📡 BROADCAST YOURSELF</p>
           <p class="broadcast-desc">ダイヤルを空いている周波数に合わせて、自分の放送を始められます。誰かの周波数とぶつかったら、少しずらしてみてください。</p>
-          <p class="locked-note">🔒 配信するにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+          <p class="locked-note">🔒 配信するにはログインが必要です。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById('loginBtn').click();">ログイン</button></p>
           <div class="radio-control" style="border-top:none; padding-top:0; margin-top:14px;">
             <input type="text" id="broadcasterName" class="live-input" placeholder="ログインすると使えます" maxlength="20" disabled>
             <button class="btn btn-primary" id="startBroadcastBtn" type="button">📡 この周波数で放送する</button>
@@ -1366,7 +1366,7 @@
         <div class="broadcast-control" style="margin-top:24px;">
           <p class="snippet-eyebrow">📅 配信予定を知らせる</p>
           <p class="broadcast-desc">「今夜この時間に配信します」と予告できます。フォローしている人には通知が届きます。</p>
-          <p class="locked-note">🔒 予告するにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+          <p class="locked-note">🔒 予告するにはログインが必要です。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById('loginBtn').click();">ログイン</button></p>
           <div class="radio-control" style="border-top:none; padding-top:0; margin-top:14px;">
             <input type="datetime-local" id="scheduleTimeInput" class="live-input" style="flex:0 0 220px;">
             <input type="text" id="scheduleNoteInput" class="live-input" placeholder="ひとこと(例：弾き語りします)" maxlength="60">
@@ -1671,7 +1671,7 @@
             <button type="button" class="btn" id="downloadDraftBtn">⬇ ダウンロード</button>
             <button type="button" class="btn btn-primary" id="submitTrackBtn">投稿する</button>
           </div>
-          <p class="locked-note">🔒 ライブラリへの投稿にはログインが必要です（試聴・ダウンロードはログインなしでもできます）。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+          <p class="locked-note">🔒 ライブラリへの投稿にはログインが必要です（試聴・ダウンロードはログインなしでもできます）。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById('loginBtn').click();">ログイン</button></p>
           <p class="audio-note" id="composerNote"></p>
         </div>
       </div>
@@ -1755,7 +1755,7 @@
         <h2>リスナーの声</h2>
         <p>ここに投稿すると、今このサイトを開いている全員にリアルタイムで表示されます。</p>
       </div>
-      <p class="locked-note">🔒 投稿するにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+      <p class="locked-note">🔒 投稿するにはログインが必要です。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById('loginBtn').click();">ログイン</button></p>
       <form class="wall-form" id="wallForm">
         <input type="text" id="wallName" class="live-input" placeholder="ログインすると使えます" maxlength="20" style="max-width:180px;" disabled>
         <input type="text" id="wallText" class="live-input" placeholder="ひとこと残していきませんか" maxlength="120">
@@ -1790,7 +1790,7 @@
             <div class="login-empty-icon">🌙</div>
             <h3>プロフィールを見るにはログインが必要です</h3>
             <p>ログインすると、公開する名前の設定・ポイントの確認・お気に入りの管理・友達紹介ができるようになります。</p>
-            <button class="btn btn-primary" type="button" onclick="document.getElementById('loginBtn').click();">🔑 Googleでログイン</button>
+            <button class="btn btn-primary" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById('loginBtn').click();">🔑 Googleでログイン</button>
           </div>
           <div id="profileContent" style="display:none;">
             <div class="profile-banner-wrap">
@@ -1904,7 +1904,7 @@
 
       <div class="composer-mode" id="shopTab" style="display:none;">
         <div class="tuner-panel">
-          <p class="locked-note">🔒 ショップを使うにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById('loginBtn').click();">ログイン</button></p>
+          <p class="locked-note">🔒 ショップを使うにはログインが必要です。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById('loginBtn').click();">ログイン</button></p>
           <p class="audio-note" id="shopBalanceText">ログインすると、あなたの今のポイントが表示されます。</p>
         </div>
 
@@ -2689,6 +2689,10 @@
       showToast('ログイン処理でエラーが発生しました：' + (err.message || code), 'error');
     }
   });
+  // ページ内の「ログイン」ボタン(マイページ・投稿欄など)から直接呼べるように公開する。
+  // ボタン→ヘッダーのボタンを代理クリック、という間接方式だとiPhoneのSafariが
+  // 「ユーザーの直接操作ではない」と判断してポップアップをブロックするため、直接呼び出しに統一
+  window.startGoogleLogin = startGoogleLogin;
 
   document.getElementById('loginBtn').addEventListener('click', startGoogleLogin);
 
@@ -3115,7 +3119,7 @@
               '<input type="text" id="commentInput" class="live-input" placeholder="' + (isHost ? 'あなた(' + escapeHtml(item.name || '名無し') + ')として送信' : 'コメントを送る') + '" maxlength="80">' +
               '<button class="btn btn-primary" type="submit">送信</button>' +
             '</form>'
-          : '<p class="locked-note" style="display:flex;">🔒 コメントするにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById(\'loginBtn\').click();">ログイン</button></p>') +
+          : '<p class="locked-note" style="display:flex;">🔒 コメントするにはログインが必要です。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById(\'loginBtn\').click();">ログイン</button></p>') +
       '</div>';
     attachComments(id);
     var followBtn = document.getElementById('followBroadcasterBtn');
@@ -4465,7 +4469,7 @@
             '<div class="comment-list" id="trackCommentList-' + id + '"></div>' +
             (currentUser
               ? '<form class="comment-form" data-comment-form="' + id + '"><input type="text" class="live-input" placeholder="コメントを送る" maxlength="80"><button class="btn btn-primary" type="submit">送信</button></form>'
-              : '<p class="locked-note" style="display:flex;">🔒 コメントするにはログインが必要です。<button class="btn" type="button" onclick="document.getElementById(\'loginBtn\').click();">ログイン</button></p>') +
+              : '<p class="locked-note" style="display:flex;">🔒 コメントするにはログインが必要です。<button class="btn" type="button" onclick="window.startGoogleLogin ? window.startGoogleLogin() : document.getElementById(\'loginBtn\').click();">ログイン</button></p>') +
           '</div>'
           : '') +
       '</article>'
